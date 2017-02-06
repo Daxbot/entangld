@@ -1,0 +1,16 @@
+{
+  "name": "ses",
+  "version": "1.0.0",
+  "description": "Synchronized entity store",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://bitbucket.org/novadynamics/ses.git"
+  },
+  "author": "c0d3",
+  "license": "SEE LICENSE IN README.md",
+  "homepage": "https://bitbucket.org/novadynamics/ses#readme"
+}
