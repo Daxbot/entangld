@@ -3,8 +3,17 @@
   "version": "1.0.0",
   "description": "Synchronized entity store",
   "main": "index.js",
+  "jshintConfig": {
+    "esversion": 6,
+    "unused": true
+  },
   "scripts": {
-    "test": "npm run test"
+    "//": "DEV RULES",
+    "test": "mocha",
+    "lint:js": "jshint --reporter=node_modules/jshint-stylish index.js test/",
+    "build": "npm run lint:js -s && npm run test -s",
+    "watch:lint:js": "nodemon -w index.js -w test/ -x npm run lint:js -s",
+    "dev": "nodemon -w index.js -w test/ -x npm run build -s"
   },
   "repository": {
     "type": "git",
@@ -12,5 +21,14 @@
   },
   "author": "c0d3",
   "license": "SEE LICENSE IN README.md",
-  "homepage": "https://bitbucket.org/novadynamics/ses#readme"
+  "homepage": "https://bitbucket.org/novadynamics/ses#readme",
+  "devDependencies": {
+    "jshint": "^2.9.4",
+    "jshint-stylish": "^2.2.1",
+    "mocha": "^3.2.0",
+    "nodemon": "^1.11.0"
+  },
+  "dependencies": {
+    "uuid": "^3.0.1"
+  }
 }
