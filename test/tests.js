@@ -4,28 +4,38 @@ var assert=require("assert");
 
 describe("Local storage",()=>{
 
-	it("Set/get value",(done)=>{
+	it("Set/get value",()=>{
 
 		let s=new Ses();
 		s.set("a.b.c.d",{ "key" : "value" });
 
-		s.get("a.b.c.d").then((val)=>{		
+		return s.get("a.b.c.d").then((val)=>{		
 
 			assert.deepEqual(val,{ "key" : "value" });
-			done();
+			return Promise.resolve();
 		});
 	});
 
-
-	it("Get invalid value returns undefined",(done)=>{
+	it("set() accepts function as value",()=>{
 
 		let s=new Ses();
-		s.get("a.b.c.d").then((val)=>{
+		s.set("a.b.c.d",()=>({ "key" : "value" }));
+
+		return s.get("a.b.c.d").then((val)=>{		
+
+			assert.deepEqual(val,{ "key" : "value" });
+			return Promise.resolve();
+		});
+	});
+
+	it("Get invalid value returns undefined",()=>{
+
+		let s=new Ses();
+		return s.get("a.b.c.d").then((val)=>{
 
 			assert(val===undefined);
-			done();
+			return Promise.resolve();
 		});
-
 	});
 
 });
@@ -41,38 +51,85 @@ describe("Multiplexed stores",()=>{
 	s.attach("b",b);
 
 	s.transmit((msg, store)=>store.receive(msg));
-	a.transmit((msg)=>s.receive(msg));
-	b.transmit((msg)=>s.receive(msg));
+	a.transmit((msg)=>s.receive(msg, a));
+	b.transmit((msg)=>s.receive(msg, b));
 
-	it("Remote set into child store", (done)=>{
+	it("Remote set into child store", ()=>{
 
 		s.set("a.system.voltage",33);
-		a.get("system.voltage").then((val)=>{
+		return a.get("system.voltage").then((val)=>{
 
 			assert.equal(val, 33);
-			done();
+			return Promise.resolve();
 		});
 	});
 
-	it("Remote get from child store", (done)=>{
+	it("Remote get from child store", ()=>{
 
 		b.set("system.speed",45);
-		s.get("b.system.speed").then((val)=>{
+		return s.get("b.system.speed").then((val)=>{
 
 			assert.equal(val, 45);
-			done();
+			return Promise.resolve();
 		});
 
 	});
 
-	// Also do tests where set sets a getter function
+	it("Get invalid child value returns undefined", ()=>{
 
-	// Also do tests where setting a child bubbles events to the parent
+		return s.get("a.system.speed").then((val)=>{
+
+			assert.equal(val, undefined);
+			return Promise.resolve();
+		});
+
+	});
 
 });
 
 
 
+describe("Events",()=>{
+
+	var s=new Ses();
+	var a=new Ses();
+
+	s.attach("a",a);
+
+	s.transmit((msg, store)=>store.receive(msg, s));
+	a.transmit((msg)=>s.receive(msg, a));
+
+	it("Subscribe to child event (exact)", (done)=>{
+
+		s.subscribe("a.system.voltage",(path, val)=>{
+
+			assert.equal(path,"a.system.voltage");
+			assert.equal(val, 21);
+			done();
+		});
+
+		a.set("system.voltage",21);
+	});
+
+
+	it("Subscribe to child event (inferred)", (done)=>{
+
+		s.subscribe("a.flowers.roses",(path, val)=>{
+
+			assert.equal(path, "a.flowers");
+			assert.deepEqual(val, {"roses": [1,2,3]});
+			done();
+		});
+
+		a.set("flowers",{"roses": [1,2,3]});
+	});
+
+});
+
+// Make sure incoming values request store doesn't build up 
+// Add unsubscribe, unattach (plus tests)
+// Document
+// Push to NPM
 
 
 
