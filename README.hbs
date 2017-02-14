@@ -1,0 +1,41 @@
+# Synchronized Entity Store (SES)
+
+object-safe, easily synchronizable entity store with request events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
+
+## Example
+```js
+	var parent=new Ses();
+	var child=new Ses();
+
+	// Attach child namespace
+	s.attach("child",child);
+
+	// Configure communications
+	parent.transmit((msg, store)=>store.receive(msg));	// store === child in this example
+	child.transmit((msg)=>parent.receive(msg, child));
+
+	// Set something in the child...
+	child.set("system.voltage",33);
+
+	// Get it back in the parent
+	parent.get("child.system.voltage");		// == 33
+
+
+```
+
+## Raison d'etre
+Any object can store values.  And a Map can store values keyed to objects.  But what if you want to....
+
+- Have your store synchronized with multiple data sources (other stores)?
+- Over a network?
+- Subscribe to events within the datastore?
+
+{{>main}}
+
+### TODO
+- Make sure incoming values request store doesn't build up 
+
+
+## License
+MIT
+

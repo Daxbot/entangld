@@ -11,9 +11,10 @@
     "//": "DEV RULES",
     "test": "mocha",
     "lint:js": "jshint --reporter=node_modules/jshint-stylish index.js test/",
-    "build": "npm run lint:js -s && npm run test -s",
+    "build": "npm run lint:js -s && npm run test -s && npm run docs -s",
     "watch:lint:js": "nodemon -w index.js -w test/ -x npm run lint:js -s",
-    "dev": "nodemon -w index.js -w test/ -x npm run build -s"
+    "dev": "nodemon -w index.js -w test/ -x npm run build -s",
+    "docs": "node generate_docs.js"
   },
   "repository": {
     "type": "git",
@@ -23,6 +24,8 @@
   "license": "SEE LICENSE IN README.md",
   "homepage": "https://bitbucket.org/novadynamics/ses#readme",
   "devDependencies": {
+    "fs-then-native": "^2.0.0",
+    "jsdoc-to-markdown": "^3.0.0",
     "jshint": "^2.9.4",
     "jshint-stylish": "^2.2.1",
     "mocha": "^3.2.0",
