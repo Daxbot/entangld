@@ -1,5 +1,5 @@
 {
-  "name": "ses",
+  "name": "synchronized-entity-store",
   "version": "1.0.0",
   "description": "Synchronized entity store",
   "main": "index.js",
