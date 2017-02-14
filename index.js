@@ -1,7 +1,7 @@
 //var EventEmitter=require("events");
 var Uuid=require("uuid");
 
-class Message {
+class Ses_Message {
 
     constructor(type, path, value, uuid) {
 
@@ -22,13 +22,23 @@ class Ses /* extends EventEmitter */{
 
 //        super();  // Don't need unless we extend something 
         //var _self=this;
-        this.stores=new Map();
-        this.namespaces=new Map();
+        this._stores=new Map();
+        this._namespaces=new Map();
 
         this._transmit=()=>{};
         this._local_data={};
-        this.requests={};
-        this.subscriptions=[] ;
+        this._requests={};
+        this._subscriptions=[] ;
+    }
+
+    get namespaces() {
+
+        return Array.from(this._stores.keys());
+    }
+
+    namespace(store) {
+
+        return this._namespaces(store);
     }
 
     attach(namespace, store){
@@ -36,11 +46,21 @@ class Ses /* extends EventEmitter */{
         // Sanity checks
         if(!store) throw new Error("You cannot attach() a null or empty store");
         if(!namespace) throw new Error("You cannot attach() a null or empty namespace");
-        if(this.stores.has(namespace)) throw new Error("You already attach()ed that namespace");
+        if(this._stores.has(namespace)) throw new Error("You already attach()ed that namespace");
 
         // Attach the store and namespace
-        this.stores.set(namespace,store);
-        this.namespaces.set(store, namespace);
+        this._stores.set(namespace,store);
+        this._namespaces.set(store, namespace);
+    }
+
+    detach(namespace, store){
+
+        if(!namespace && !store) throw new Error("You must specify at least one store or namespace when calling detach()");
+
+        if(!store) store=this._stores.get(namespace);
+        if(!namespace) namespace=this._namespaces.get(store);
+
+        return (this._stores.delete(namespace) && this._namespaces.delete(store));
     }
 
     transmit(f) {
@@ -60,24 +80,24 @@ class Ses /* extends EventEmitter */{
 
             this.get(msg.path).then((val)=>{
 
-                this._transmit(new Message("value", msg.path, val, msg.uuid));
+                this._transmit(new Ses_Message("value", msg.path, val, msg.uuid), store);
             });
 
         // Incoming value reply
         } else if (msg.type=="value") {
 
-            let resolve=this.requests[msg.uuid];
+            let resolve=this._requests[msg.uuid];
             resolve(msg.value);
 
         // Incoming event 
         } else if (msg.type=="event") {
 
             // From our perspective, the path is now prepended with the store name
-            let path=this.namespaces.get(store)+"."+msg.path;
+            let path=this._namespaces.get(store)+"."+msg.path;
 
             // Find and dispatch any subscriptions
             var count=0;            
-            for(let s of this.subscriptions){
+            for(let s of this._subscriptions){
 
                 if (this._is_contained_by(path, s.path)){
 
@@ -93,10 +113,10 @@ class Ses /* extends EventEmitter */{
         // Incoming remote subscription request
         } else if(msg.type=="subscribe"){
 
-            this.subscriptions.push({path: msg.path, callback: (path, val)=>{
+            this._subscriptions.push({path: msg.path, callback: (path, val)=>{
 
                 // This is a remote subscription, so when we are called we need to send the value
-                this._transmit(new Message("event", path, val));
+                this._transmit(new Ses_Message("event", path, val));
             }});            
 
         // Default
@@ -115,7 +135,7 @@ class Ses /* extends EventEmitter */{
         let tree=path.split(".");
 
         // Get the remote store
-        let store=this.stores.get(tree.shift());
+        let store=this._stores.get(tree.shift());
 
         // Set local or remote item
         if(store===undefined) {
@@ -123,7 +143,7 @@ class Ses /* extends EventEmitter */{
             this._set_local(path,o);
 
             // Check subscriptions to see if we need to run an event
-            for(let s of this.subscriptions){
+            for(let s of this._subscriptions){
 
                 if (this._is_contained_by(path, s.path)){
 
@@ -133,7 +153,7 @@ class Ses /* extends EventEmitter */{
 
         } else {
          
-            this._transmit(new Message("set", tree.join("."), o), store);
+            this._transmit(new Ses_Message("set", tree.join("."), o), store);
         }
 
     }
@@ -147,7 +167,7 @@ class Ses /* extends EventEmitter */{
         let tree=path.split(".");
 
         // Get the remote store
-        let store=this.stores.get(tree.shift());
+        let store=this._stores.get(tree.shift());
 
         // If store is undefined, we are getting a local item
         if(store===undefined) {
@@ -157,11 +177,11 @@ class Ses /* extends EventEmitter */{
         }
 
         // Request the data from the remote store
-        var msg=new Message("get", tree.join("."));
+        var msg=new Ses_Message("get", tree.join("."));
         var _this=this;
         return new Promise((res)=>{
 
-            _this.requests[msg.uuid]=res;
+            _this._requests[msg.uuid]=res;
             this._transmit(msg, store);            
         });
 
@@ -178,16 +198,16 @@ class Ses /* extends EventEmitter */{
 
         // Get the remote store
         let store_name=tree.shift();
-        let store=this.stores.get(store_name);
+        let store=this._stores.get(store_name);
 
         // Undefined store means we are trying to subscribe to something 
         if(store===undefined) throw new Error("Unable to subscribe to nonexistent store (please attach '"+store_name+"' first)");
 
         // Add to our subscriptions list
-        this.subscriptions.push({path: path, callback: f});
+        this._subscriptions.push({path: path, callback: f});
 
         // Tell the store that we are subscribing
-        var msg=new Message("subscribe", tree.join("."));
+        var msg=new Ses_Message("subscribe", tree.join("."));
         this._transmit(msg, store);            
 
     }

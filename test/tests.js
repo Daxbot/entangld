@@ -16,7 +16,7 @@ describe("Local storage",()=>{
 		});
 	});
 
-	it("set() accepts function as value",()=>{
+	it("set() accepts getter function as value",()=>{
 
 		let s=new Ses();
 		s.set("a.b.c.d",()=>({ "key" : "value" }));
@@ -85,6 +85,50 @@ describe("Multiplexed stores",()=>{
 
 	});
 
+	it("Child read from parent", ()=>{
+
+		b.attach("__parent", s);
+		s.set("eyes", "blue");
+
+		return b.get("__parent.eyes").then((val)=>{
+
+			assert.equal(val, "blue");
+			return Promise.resolve;
+		});
+
+	});
+
+	it("Child read from sibling", ()=>{
+
+		a.set("system.tea","Earl Grey. Hot.");
+		return b.get("__parent.a.system.tea").then((val)=>{
+
+			assert.equal(val, "Earl Grey. Hot.");
+			return Promise.resolve;
+		});
+
+	});
+	it(".namespaces getter", ()=>{
+
+		assert.deepEqual(s.namespaces,["a","b"]);
+	});	
+
+	it(".detach() by namespace", ()=>{
+
+		assert.equal(s.detach("a"), true);
+		assert.deepEqual(s.namespaces,["b"]);
+	});	
+
+	it(".detach() by store", ()=>{
+
+		assert.equal(s.detach(null, b), true);
+		assert.deepEqual(s.namespaces,[]);
+	});	
+
+	// Add a triple multiplexed store test
+	// Then go consider using it with DaxOS chips
+
+
 });
 
 
@@ -126,10 +170,6 @@ describe("Events",()=>{
 
 });
 
-// Make sure incoming values request store doesn't build up 
-// Add unsubscribe, unattach (plus tests)
-// Document
-// Push to NPM
 
 
 
