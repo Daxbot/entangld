@@ -2,7 +2,8 @@
 
 Synchronized key-value stores with RPCs and events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
-## Example
+## Examples
+Basic use, pairing two data stores together:
 ```js
 	var parent=new Entangld();
 	var child=new Entangld();
@@ -19,9 +20,73 @@ Synchronized key-value stores with RPCs and events.  Works over sockets (try it 
 
 	// Get it back in the parent
 	parent.get("child.system.voltage");		// == 33
+```
+RPC mode:
+```js
+	// Assign a function to a child key
+	child.set("double.me",(param)=>param*2);
 
+	// Call the RPC from the parent
+	parent.get("child.double.me", 2).then((val)=>{
+
+		// val == 4
+	});
 
 ```
+Over sockets:
+```js
+var Sockhop=require("sockhop");
+var Entangld=require("entangld");
+var parent=new Entangld();
+
+
+/**
+ * Parent / server setup
+ */
+
+let parent=new Entangld();
+let server=new Sockhop.server();
+
+// Connect server to parent store
+parent.transmit((msg, store)=>server.send(store, msg));
+server
+	.on("receive",(data, meta)=>parent.receive(data, meta.sock))		// Use the socket as the data store handle
+	.on('connect',(sock)=>{
+
+		parent.attach("client", sock);					// "client" works for one client.  Normally use uuid() or something
+
+		parent.get("client.my.name")
+			.then((val)=>{
+				
+				console.log("Client's name is "+val);
+				server.close();
+			});
+	})
+	.on('disconnect', (sock)=>parent.detach(null, sock))
+    .on('error', (e)=>console.log("Sockhop error: "+e))
+	.listen();
+
+
+/**
+ * Child / client setup
+ */
+
+let child=new Entangld();
+let client=new Sockhop.client();
+
+// Connect client to child store
+child.transmit((msg)=>client.send(msg));
+client
+	.on("receive", (data, meta)=>child.receive(data))
+	.on("connect", ()=>{
+		// attach() to parent is optional, if we plan to get() parent items
+	})
+	.on("error", (e)=>console.log("Sockhop error: "+e))
+	.connect();
+
+child.set("my.name", "Entangld");
+```
+
 
 ## Raison d'etre
 Any object can store values.  And a Map can store values keyed to objects.  But what if you want to....

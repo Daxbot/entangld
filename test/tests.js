@@ -16,7 +16,7 @@ describe("Local storage",()=>{
 		});
 	});
 
-	it("set() accepts function (RPC mode)",()=>{
+	it("set() accepts function (RPC mode, object as parameter)",()=>{
 
 		let s=new Entangld();
 
@@ -26,6 +26,20 @@ describe("Local storage",()=>{
 		return s.get("a.b.c.d", {"value": 5}).then((val)=>{		
 
 			assert.deepEqual(val,{ "doubled" : 10 });
+			return Promise.resolve();
+		});
+	});
+
+	it("set() accepts function (RPC mode, bare value as parameter)",()=>{
+
+		let s=new Entangld();
+
+		// Assign a function to "a.b.c.d"
+		s.set("a.b.c.d",(param)=>( 2*param));
+
+		return s.get("a.b.c.d", 5).then((val)=>{		
+
+			assert.equal(val,10);
 			return Promise.resolve();
 		});
 	});
@@ -76,6 +90,29 @@ describe("Multiplexed stores",()=>{
 		});
 
 	});
+
+	it("Remote get from child RPC (bare value as parameter)", ()=>{
+
+		b.set("system.doubled",(param)=>param*2);
+		return s.get("b.system.doubled", 15).then((val)=>{
+
+			assert.equal(val, 30);
+			return Promise.resolve();
+		});
+
+	});
+
+	it("Remote get from child RPC (object as parameter)", ()=>{
+
+		a.set("system.doubled",(param)=>({ doubled: param.value*2}));
+		return s.get("a.system.doubled", {value: 4}).then((val)=>{
+
+			assert.deepEqual(val, {doubled: 8});
+			return Promise.resolve();
+		});
+
+	});
+
 
 	it("Get invalid child value returns undefined", ()=>{
 
