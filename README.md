@@ -1,6 +1,6 @@
 # Entangld
 
-Synchronized key-value stores with RPCs and events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
+Synchronized key-value stores with RPCs and pub/sub events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
 ## Examples
 Basic use, pairing two data stores together:
@@ -32,6 +32,18 @@ RPC mode:
 		// val == 4
 	});
 
+```
+Pub/sub (remote events):
+```js
+	// Assign an event callback
+	parent.subscribe("child.system.voltage",(path, val)=>{
+
+		// path=="child.system.voltage"
+		// val==21 
+	});
+
+	// Trigger an event
+	child.set("system.voltage",21);
 ```
 Over sockets:
 ```js
