@@ -1,5 +1,9 @@
 var Uuid=require("uuid");
 
+/**
+ * Message class for Entangld
+ *
+ */
 class Entangld_Message {
 
     constructor(type, path, value, uuid) {
@@ -26,6 +30,7 @@ class Entangld {
         this._local_data={};
         this._requests={};
         this._subscriptions=[] ;
+        this._partial_copy=partial_copy;        // So it is accessible for testing
     }
 
     /**
@@ -204,12 +209,14 @@ class Entangld {
         }
 
     }
-
+ 
     /**
      * Get an object from the store
      *
+     * Note: using max_depth, especially large max_depth, involves a lot of recursion and may be expensive
+     *
      * @param {string} path the path to query (like "system.voltage")
-     * @param {object} [params] the parameters to be passed to the remote function (RPC mode only)
+     * @param [params|max_depth] the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode)
      * @throws {Errror} throws error on empty path
      * @return {object} the object living at that path
      */ 
@@ -227,8 +234,23 @@ class Entangld {
         // If store is undefined, we are getting a local item
         if(store===undefined) {
 
+            // Get a reference to the object
             let o=this._get_local(path);
-            return new Promise((res)=>res((typeof(o)=="function")?o(params):o));
+
+            // If it is a function, call it and return the result
+            if(typeof(o)=="function"){
+
+                return new Promise((res)=>res(o(params)));                
+            }
+
+            // If params is a number, use it as a max depth and return a partial copy
+            if(typeof(params)=="number"){
+
+                return new Promise((res)=>res(partial_copy(o,params)));
+            }
+
+            // Default: return the entire object as-is
+            return new Promise((res)=>res(o));
         }
 
         // Request the data from the remote store
@@ -342,9 +364,44 @@ class Entangld {
 
         return true;
     }
-
 }
 
+/** 
+ * Partial copy
+ *
+ * Return a partial copy of an object (depth limited).  DOES NOT DE-REFERENCE!
+ *
+ * @private
+ * @param {object} object the object to copy
+ * @param {number} max_depth the maximum depth to copy (max_depth==0 returns object keys)
+ */
+function partial_copy(o, max_depth) {
+
+    // Trivial case, return object untouched if no max_depth
+    if(typeof(max_depth)!="number") return o;
+
+    // If max_depth has been exceeded, return an empty object or array
+    if(max_depth<0) return (Array.isArray(o))?[]:{};
+
+    // If o is not an object, return it
+    if(typeof(o)!="object") return o;
+
+    // Otherwise, iterate keys and call ourselves recursively
+    let c={};
+    for(let key in o){
+
+        if(typeof(o[key])!="object"){
+
+            c[key]=o[key];
+
+        } else {
+
+            c[key]=partial_copy(o[key], max_depth-1);      
+        }
+    }
+
+    return c;
+ }
 
 module.exports=exports=Entangld;
 

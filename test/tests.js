@@ -2,6 +2,75 @@ var Entangld=require("../index.js");
 var assert=require("assert");
 
 
+describe("Internal functions",()=>{
+
+	let e=new Entangld();
+
+	describe("_partial_copy",()=>{
+
+		// Create a data tree
+		let v={
+
+			a: {
+				b: {
+					c: 6
+				}
+			},
+			d: {
+				e: [
+					{
+						f: { 
+							g: 7
+						}
+					}
+				]
+				
+			},
+			h: 4
+		};
+
+		it("returns original object when depth is unspecified",()=>{
+
+			assert.deepEqual(e._partial_copy(v), v);
+
+		});
+
+		it("max_depth==0",()=>{
+
+			assert.deepEqual(e._partial_copy(v,0), {a: {}, d:{}, h:4});
+
+		});
+
+		it("max_depth==1",()=>{
+
+			assert.deepEqual(e._partial_copy(v,1), {a: { b: {} }, d:{ e: [] }, h:4});
+
+		});
+
+		it("max_depth==2",()=>{
+
+			assert.deepEqual(e._partial_copy(v,2), {a: { b: { c: 6 } }, d:{ e: [ {} ] }, h:4 });
+
+		});
+
+		it("max_depth==3",()=>{
+
+			assert.deepEqual(e._partial_copy(v,3), {a: { b: { c: 6 } }, d:{ e: [ { f: {} } ] }, h:4 });
+
+		});
+
+		it("max_depth==4",()=>{
+
+			assert.deepEqual(e._partial_copy(v,4), {a: { b: { c: 6 } }, d:{ e: [ { f: { g: 7 } } ] }, h:4 });
+
+		});
+	});
+
+});
+
+
+
+
 describe("Local storage",()=>{
 
 	it("Set/get value",()=>{
@@ -40,6 +109,50 @@ describe("Local storage",()=>{
 		return s.get("a.b.c.d", 5).then((val)=>{		
 
 			assert.equal(val,10);
+			return Promise.resolve();
+		});
+	});
+
+	it("get() accepts optional max_depth parameter",()=>{
+
+		let s=new Entangld();
+
+		// Create a data tree
+		let tree={
+
+			a: {
+				b: {
+					c: 6
+				}
+			},
+			d: {
+				e: {
+					f: 7
+				}
+			}
+		};
+
+		// Assign tree
+		s.set("tree",tree);
+
+		return s.get("tree").then((val)=>{		
+
+			// Make sure we get the whole tree
+			assert.deepEqual(val,tree);
+
+			return s.get("tree",0);
+		})
+		.then((val)=>{
+
+			// Make sure we get the first layer (depth 0)
+			assert.deepEqual(val,{a:{}, d:{}});
+
+			return s.get("tree",1);
+		})
+		.then((val)=>{
+
+			// Make sure we get the first and second layers (depth 1)
+			assert.deepEqual(val,{a:{ b: {} }, d:{ e: {} }});
 			return Promise.resolve();
 		});
 	});

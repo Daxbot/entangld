@@ -107,6 +107,23 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Over a network?
 - Subscribe to events within the datastore?
 
+## Classes
+
+<dl>
+<dt><a href="#Entangld_Message">Entangld_Message</a></dt>
+<dd><p>Message class for Entangld</p>
+</dd>
+<dt><a href="#Entangld">Entangld</a> ⇐ <code>EventEmitter</code></dt>
+<dd><p>Synchronized Event Store</p>
+</dd>
+</dl>
+
+<a name="Entangld_Message"></a>
+
+## Entangld_Message
+Message class for Entangld
+
+**Kind**: global class  
 <a name="Entangld"></a>
 
 ## Entangld ⇐ <code>EventEmitter</code>
@@ -123,7 +140,7 @@ Synchronized Event Store
     * [.transmit(f)](#Entangld+transmit)
     * [.receive(msg, [store])](#Entangld+receive)
     * [.set(path, the)](#Entangld+set)
-    * [.get(path, [params])](#Entangld+get) ⇒ <code>object</code>
+    * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>object</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
 
 <a name="Entangld+namespaces"></a>
@@ -222,8 +239,10 @@ Set an object into the store
 
 <a name="Entangld+get"></a>
 
-### entangld.get(path, [params]) ⇒ <code>object</code>
+### entangld.get(path, [params|max_depth]) ⇒ <code>object</code>
 Get an object from the store
+
+Note: using max_depth, especially large max_depth, involves a lot of recursion and may be expensive
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Returns**: <code>object</code> - the object living at that path  
@@ -235,7 +254,7 @@ Get an object from the store
 | Param | Type | Description |
 | --- | --- | --- |
 | path | <code>string</code> | the path to query (like "system.voltage") |
-| [params] | <code>object</code> | the parameters to be passed to the remote function (RPC mode only) |
+| [params|max_depth] |  | the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode) |
 
 <a name="Entangld+subscribe"></a>
 
