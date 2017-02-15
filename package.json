@@ -1,7 +1,7 @@
 {
-  "name": "synchronized-entity-store",
-  "version": "1.0.0",
-  "description": "Synchronized entity store",
+  "name": "entangld",
+  "version": "1.1.0",
+  "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
   "jshintConfig": {
     "esversion": 6,
@@ -18,11 +18,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://bitbucket.org/novadynamics/ses.git"
+    "url": "git+https://bitbucket.org/novadynamics/entangld.git"
   },
   "author": "c0d3",
   "license": "SEE LICENSE IN README.md",
-  "homepage": "https://bitbucket.org/novadynamics/ses#readme",
+  "homepage": "https://bitbucket.org/novadynamics/entangld#readme",
   "devDependencies": {
     "fs-then-native": "^2.0.0",
     "jsdoc-to-markdown": "^3.0.0",

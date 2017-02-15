@@ -1,11 +1,11 @@
-# Synchronized Entity Store (SES)
+# Entangld
 
-object-safe, easily synchronizable entity store with request events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
+Synchronized key-value stores with RPCs and events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
 ## Example
 ```js
-	var parent=new Ses();
-	var child=new Ses();
+	var parent=new Entangld();
+	var child=new Entangld();
 
 	// Attach child namespace
 	s.attach("child",child);

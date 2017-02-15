@@ -1,4 +1,4 @@
-var Ses=require("../index.js");
+var Entangld=require("../index.js");
 var assert=require("assert");
 
 
@@ -6,7 +6,7 @@ describe("Local storage",()=>{
 
 	it("Set/get value",()=>{
 
-		let s=new Ses();
+		let s=new Entangld();
 		s.set("a.b.c.d",{ "key" : "value" });
 
 		return s.get("a.b.c.d").then((val)=>{		
@@ -16,21 +16,23 @@ describe("Local storage",()=>{
 		});
 	});
 
-	it("set() accepts getter function as value",()=>{
+	it("set() accepts function (RPC mode)",()=>{
 
-		let s=new Ses();
-		s.set("a.b.c.d",()=>({ "key" : "value" }));
+		let s=new Entangld();
 
-		return s.get("a.b.c.d").then((val)=>{		
+		// Assign a function to "a.b.c.d"
+		s.set("a.b.c.d",(params)=>({ "doubled" : 2*params.value }));
 
-			assert.deepEqual(val,{ "key" : "value" });
+		return s.get("a.b.c.d", {"value": 5}).then((val)=>{		
+
+			assert.deepEqual(val,{ "doubled" : 10 });
 			return Promise.resolve();
 		});
 	});
 
 	it("Get invalid value returns undefined",()=>{
 
-		let s=new Ses();
+		let s=new Entangld();
 		return s.get("a.b.c.d").then((val)=>{
 
 			assert(val===undefined);
@@ -43,9 +45,9 @@ describe("Local storage",()=>{
 
 describe("Multiplexed stores",()=>{
 
-	var s=new Ses();
-	var a=new Ses();
-	var b=new Ses();
+	var s=new Entangld();
+	var a=new Entangld();
+	var b=new Entangld();
 
 	s.attach("a",a);
 	s.attach("b",b);
@@ -135,8 +137,8 @@ describe("Multiplexed stores",()=>{
 
 describe("Events",()=>{
 
-	var s=new Ses();
-	var a=new Ses();
+	var s=new Entangld();
+	var a=new Entangld();
 
 	s.attach("a",a);
 

@@ -1,6 +1,6 @@
 var Uuid=require("uuid");
 
-class Ses_Message {
+class Entangld_Message {
 
     constructor(type, path, value, uuid) {
 
@@ -15,7 +15,7 @@ class Ses_Message {
  * Synchronized Event Store
  * @extends EventEmitter
  */
-class Ses {
+class Entangld {
 
     constructor(){
 
@@ -92,7 +92,7 @@ class Ses {
      * Transmit 
      *
      * Specify a callback to be used so we can transmit data to another store
-     * Callback will be passed (msg, store) where msg is an object and store is the Ses store that should receive() it
+     * Callback will be passed (msg, store) where msg is an object and store is the Entangld store that should receive() it
      * @param {function} f the callback function
      */
     transmit(f) {
@@ -106,7 +106,7 @@ class Ses {
      * Call this function with the data that was sent via the transmit() callback
      *
      * @param {object} msg the message that was given to the callback
-     * @param {object} [store] the Ses store that sent the message
+     * @param {object} [store] the Entangld store that sent the message
      */
     receive(msg, store) {
 
@@ -118,9 +118,9 @@ class Ses {
         // Remote "get" request
         } else if(msg.type=="get") {
 
-            this.get(msg.path).then((val)=>{
+            this.get(msg.path, msg.value).then((val)=>{
 
-                this._transmit(new Ses_Message("value", msg.path, val, msg.uuid), store);
+                this._transmit(new Entangld_Message("value", msg.path, val, msg.uuid), store);
             });
 
         // Incoming value reply
@@ -156,7 +156,7 @@ class Ses {
             this._subscriptions.push({path: msg.path, callback: (path, val)=>{
 
                 // This is a remote subscription, so when we are called we need to send the value
-                this._transmit(new Ses_Message("event", path, val));
+                this._transmit(new Entangld_Message("event", path, val));
             }});            
 
         // Default
@@ -200,7 +200,7 @@ class Ses {
 
         } else {
          
-            this._transmit(new Ses_Message("set", tree.join("."), o), store);
+            this._transmit(new Entangld_Message("set", tree.join("."), o), store);
         }
 
     }
@@ -209,10 +209,11 @@ class Ses {
      * Get an object from the store
      *
      * @param {string} path the path to query (like "system.voltage")
+     * @param {object} [params] the parameters to be passed to the remote function (RPC mode only)
      * @throws {Errror} throws error on empty path
      * @return {object} the object living at that path
      */ 
-    get(path) {
+    get(path, params) {
 
         // Sanity check
         if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
@@ -227,11 +228,11 @@ class Ses {
         if(store===undefined) {
 
             let o=this._get_local(path);
-            return new Promise((res)=>res((typeof(o)=="function")?o():o));
+            return new Promise((res)=>res((typeof(o)=="function")?o(params):o));
         }
 
         // Request the data from the remote store
-        var msg=new Ses_Message("get", tree.join("."));
+        var msg=new Entangld_Message("get", tree.join("."), params);
         var _this=this;
         return new Promise((res)=>{
 
@@ -269,7 +270,7 @@ class Ses {
         this._subscriptions.push({path: path, callback: f});
 
         // Tell the store that we are subscribing
-        var msg=new Ses_Message("subscribe", tree.join("."));
+        var msg=new Entangld_Message("subscribe", tree.join("."));
         this._transmit(msg, store);            
 
     }
@@ -345,5 +346,5 @@ class Ses {
 }
 
 
-module.exports=exports=Ses;
+module.exports=exports=Entangld;
 

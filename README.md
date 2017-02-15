@@ -1,11 +1,11 @@
-# Synchronized Entity Store (SES)
+# Entangld
 
-object-safe, easily synchronizable entity store with request events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
+Synchronized key-value stores with RPCs and events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
 ## Example
 ```js
-	var parent=new Ses();
-	var child=new Ses();
+	var parent=new Entangld();
+	var child=new Entangld();
 
 	// Attach child namespace
 	s.attach("child",child);
@@ -30,47 +30,47 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Over a network?
 - Subscribe to events within the datastore?
 
-<a name="Ses"></a>
+<a name="Entangld"></a>
 
-## Ses ⇐ <code>EventEmitter</code>
+## Entangld ⇐ <code>EventEmitter</code>
 Synchronized Event Store
 
 **Kind**: global class  
 **Extends:** <code>EventEmitter</code>  
 
-* [Ses](#Ses) ⇐ <code>EventEmitter</code>
-    * [.namespaces](#Ses+namespaces) ⇒ <code>array</code>
-    * [.namespace()](#Ses+namespace) ⇒ <code>string</code>
-    * [.attach(namespace, store)](#Ses+attach)
-    * [.detach([namespace], [store])](#Ses+detach)
-    * [.transmit(f)](#Ses+transmit)
-    * [.receive(msg, [store])](#Ses+receive)
-    * [.set(path, the)](#Ses+set)
-    * [.get(path)](#Ses+get) ⇒ <code>object</code>
-    * [.subscribe(path, f)](#Ses+subscribe)
+* [Entangld](#Entangld) ⇐ <code>EventEmitter</code>
+    * [.namespaces](#Entangld+namespaces) ⇒ <code>array</code>
+    * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
+    * [.attach(namespace, store)](#Entangld+attach)
+    * [.detach([namespace], [store])](#Entangld+detach)
+    * [.transmit(f)](#Entangld+transmit)
+    * [.receive(msg, [store])](#Entangld+receive)
+    * [.set(path, the)](#Entangld+set)
+    * [.get(path, [params])](#Entangld+get) ⇒ <code>object</code>
+    * [.subscribe(path, f)](#Entangld+subscribe)
 
-<a name="Ses+namespaces"></a>
+<a name="Entangld+namespaces"></a>
 
-### ses.namespaces ⇒ <code>array</code>
+### entangld.namespaces ⇒ <code>array</code>
 Get namespaces
 
-**Kind**: instance property of <code>[Ses](#Ses)</code>  
+**Kind**: instance property of <code>[Entangld](#Entangld)</code>  
 **Returns**: <code>array</code> - namespaces an array of attached namespaces  
 **Read only**: true  
-<a name="Ses+namespace"></a>
+<a name="Entangld+namespace"></a>
 
-### ses.namespace() ⇒ <code>string</code>
+### entangld.namespace() ⇒ <code>string</code>
 Get namespace for a store
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Returns**: <code>string</code> - namespace for the given store  
 **Read only**: true  
-<a name="Ses+attach"></a>
+<a name="Entangld+attach"></a>
 
-### ses.attach(namespace, store)
+### entangld.attach(namespace, store)
 Attach a namespace and a store
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
 
 - <code>Error</code> Error will be thrown if you try to attach a namespace twice
@@ -81,14 +81,14 @@ Attach a namespace and a store
 | namespace | <code>string</code> | a namespace for this store |
 | store | <code>object</code> | an object that will be sent along with "transmit" callbacks when we need something from this store |
 
-<a name="Ses+detach"></a>
+<a name="Entangld+detach"></a>
 
-### ses.detach([namespace], [store])
+### entangld.detach([namespace], [store])
 Detach a namespace / store pair
 
 If you only pass a namespace or a store, it will find the missing item before detaching
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
 
 - <code>Error</code> Error will be thrown if you don't pass at least one parameter
@@ -99,40 +99,40 @@ If you only pass a namespace or a store, it will find the missing item before de
 | [namespace] | <code>string</code> | the namespace |
 | [store] | <code>object</code> | the store |
 
-<a name="Ses+transmit"></a>
+<a name="Entangld+transmit"></a>
 
-### ses.transmit(f)
+### entangld.transmit(f)
 Transmit 
 
 Specify a callback to be used so we can transmit data to another store
-Callback will be passed (msg, store) where msg is an object and store is the Ses store that should receive() it
+Callback will be passed (msg, store) where msg is an object and store is the Entangld store that should receive() it
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | f | <code>function</code> | the callback function |
 
-<a name="Ses+receive"></a>
+<a name="Entangld+receive"></a>
 
-### ses.receive(msg, [store])
+### entangld.receive(msg, [store])
 Receive
 
 Call this function with the data that was sent via the transmit() callback
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 
 | Param | Type | Description |
 | --- | --- | --- |
 | msg | <code>object</code> | the message that was given to the callback |
-| [store] | <code>object</code> | the Ses store that sent the message |
+| [store] | <code>object</code> | the Entangld store that sent the message |
 
-<a name="Ses+set"></a>
+<a name="Entangld+set"></a>
 
-### ses.set(path, the)
+### entangld.set(path, the)
 Set an object into the store
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
 
 - <code>Error</code> Throws error on empty path
@@ -143,12 +143,12 @@ Set an object into the store
 | path | <code>string</code> | the path to set (like "system.fan.voltage") |
 | the | <code>object</code> | object you want to set it to |
 
-<a name="Ses+get"></a>
+<a name="Entangld+get"></a>
 
-### ses.get(path) ⇒ <code>object</code>
+### entangld.get(path, [params]) ⇒ <code>object</code>
 Get an object from the store
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Returns**: <code>object</code> - the object living at that path  
 **Throws**:
 
@@ -158,15 +158,16 @@ Get an object from the store
 | Param | Type | Description |
 | --- | --- | --- |
 | path | <code>string</code> | the path to query (like "system.voltage") |
+| [params] | <code>object</code> | the parameters to be passed to the remote function (RPC mode only) |
 
-<a name="Ses+subscribe"></a>
+<a name="Entangld+subscribe"></a>
 
-### ses.subscribe(path, f)
+### entangld.subscribe(path, f)
 Subscribe to change events for a path
 
 If objects at or below this path change, you will get a callback
 
-**Kind**: instance method of <code>[Ses](#Ses)</code>  
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
 
 - <code>Error</code> error thrown on empty path
