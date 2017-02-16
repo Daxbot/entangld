@@ -248,7 +248,7 @@ Note: using max_depth, especially large max_depth, involves a lot of recursion a
 **Returns**: <code>object</code> - the object living at that path  
 **Throws**:
 
-- <code>Errror</code> throws error on empty path
+- <code>Errror</code> throws error
 
 
 | Param | Type | Description |

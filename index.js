@@ -217,13 +217,13 @@ class Entangld {
      *
      * @param {string} path the path to query (like "system.voltage")
      * @param [params|max_depth] the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode)
-     * @throws {Errror} throws error on empty path
+     * @throws {Errror} throws error 
      * @return {object} the object living at that path
      */ 
     get(path, params) {
 
         // Sanity check
-        if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
+        if(typeof(path) !="string") throw new Error("path must be a string");
 
         // Turn the path string into an array
         let tree=path.split(".");
@@ -331,6 +331,9 @@ class Entangld {
      * @return {object} object the object at that path
      */
     _get_local(path) {
+
+        // Empty path means get everything
+        if(path==="") return this._local_data;
 
         try {
     

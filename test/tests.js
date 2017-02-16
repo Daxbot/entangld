@@ -195,10 +195,20 @@ describe("Multiplexed stores",()=>{
 
 	it("Remote get from child store", ()=>{
 
-		b.set("system.speed",45);
-		return s.get("b.system.speed").then((val)=>{
+		a.set("system.speed",45);
+		return s.get("a.system.speed").then((val)=>{
 
 			assert.equal(val, 45);
+			return Promise.resolve();
+		});
+
+	});
+
+	it("Remote get root (everything) from child store", ()=>{
+
+		return s.get("a").then((val)=>{
+
+			assert.deepEqual(val,{system: {voltage: 33, speed: 45}});
 			return Promise.resolve();
 		});
 
@@ -229,7 +239,7 @@ describe("Multiplexed stores",()=>{
 
 	it("Get invalid child value returns undefined", ()=>{
 
-		return s.get("a.system.speed").then((val)=>{
+		return s.get("b.system.speed").then((val)=>{
 
 			assert.equal(val, undefined);
 			return Promise.resolve();
