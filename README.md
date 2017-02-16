@@ -142,6 +142,7 @@ Synchronized Event Store
     * [.set(path, the)](#Entangld+set)
     * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>object</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
+    * [.unsubscribe(path)](#Entangld+unsubscribe)
 
 <a name="Entangld+namespaces"></a>
 
@@ -273,6 +274,21 @@ If objects at or below this path change, you will get a callback
 | --- | --- | --- |
 | path | <code>string</code> | the path to watch |
 | f | <code>function</code> | the callback - will be of the form (path, value) |
+
+<a name="Entangld+unsubscribe"></a>
+
+### entangld.unsubscribe(path)
+Unubscribe to change events for a path
+
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+**Throws**:
+
+- <code>Error</code> 
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| path | <code>string</code> | the path to watch |
 
 
 ### TODO

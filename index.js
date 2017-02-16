@@ -144,7 +144,7 @@ class Entangld {
             var count=0;            
             for(let s of this._subscriptions){
 
-                if (this._is_contained_by(path, s.path)){
+                if (this._is_beneath(path, s.path)){
 
                     // Call the callback
                     s.callback(path, msg.value);
@@ -152,8 +152,8 @@ class Entangld {
                 }
             }
 
-            // If no callbacks were called, we should maybe inform the child that no one is listening (?)
-            if(count===0) throw new Error("Store sent an event that no one subscribed to");
+            // No one is listening.  This may happen if an event triggers while we are still unsubscribing.
+            if(count===0) throw new Error("Store sent an event that no one is subscribed to");
 
         // Incoming remote subscription request
         } else if(msg.type=="subscribe"){
@@ -163,6 +163,21 @@ class Entangld {
                 // This is a remote subscription, so when we are called we need to send the value
                 this._transmit(new Entangld_Message("event", path, val));
             }});            
+
+        // Incoming remote subscription request
+        } else if(msg.type=="unsubscribe"){
+
+            if(msg.path===""){
+
+                // Unsubscribe from all
+                this._subscriptions=[];
+            } else {
+
+                // Unsubscribe from one
+                let idx=this._subscriptions.reduce((p,v,i)=>p||((v.path==msg.path)?i:null),null);
+                if(idx!==null) this._subscriptions.splice(idx,1);        
+            }
+
 
         // Default
         } else {
@@ -181,7 +196,7 @@ class Entangld {
     set(path, o) {
 
         // Sanity check
-        if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
+        if(typeof(path) !="string") throw new Error("path must be a string");
 
         // Turn the path string into an array
         let tree=path.split(".");
@@ -197,7 +212,7 @@ class Entangld {
             // Check subscriptions to see if we need to run an event
             for(let s of this._subscriptions){
 
-                if (this._is_contained_by(path, s.path)){
+                if (this._is_beneath(path, s.path)){
 
                     s.callback(path, o);
                 }
@@ -298,6 +313,44 @@ class Entangld {
     }
 
     /**
+     * Unubscribe to change events for a path
+     *
+     * @param {string} path the path to watch
+     * @throws {Error}
+     */
+    unsubscribe(path) {
+
+        // Turn the path string into an array
+        let tree=path.split(".");
+
+        // Get the remote store
+        let store_name=tree.shift();
+        let store=this._stores.get(store_name);
+
+        // Undefined store means we are trying to subscribe to something 
+        if(store===undefined) throw new Error("Unable to unsubscribe to nonexistent store (please attach '"+store_name+"' first)");
+
+        if(tree.length===0){
+
+            // Unsubscribe from all
+            this._subscriptions=this._subscriptions.filter((s)=>!s.path.startsWith(store_name+"."));
+    
+        } else {
+
+            // Unsubscribe from one
+            let idx=this._subscriptions.reduce((p,v,i)=>p||((v.path==path)?i:null),null);
+            if(idx===null) throw new Error("Cannot unsubscribe to event that was not previously subscribed");
+            this._subscriptions.splice(idx,1);        
+        }
+
+
+        // Tell the store that we are unsubscribing
+        var msg=new Entangld_Message("unsubscribe", tree.join("."));
+        this._transmit(msg, store);            
+    }
+
+
+    /**
      * Set local object
      *
      * Sets object into local data store
@@ -307,6 +360,12 @@ class Entangld {
      * @param {object} object the object to store
      */
     _set_local(path, o){
+
+        // Empty path means set everything
+        if(path==="") {
+            this._local_data=o;
+            return;
+        }
 
         let elements=path.split(".");
         let last=elements.pop();
@@ -346,24 +405,28 @@ class Entangld {
     }
 
     /**
-     * Is contained by
+     * Is beneath
      *
-     * Is a under b? E.g. is "system.bus.voltage" inside "system.bus"?
+     * Is a under b? E.g. is "system.bus.voltage" eqaual to or beneath "system.bus"?
      *
      * @private
      * @param a string tested for "insideness"
      * @param b string tested for "outsideness"
      * @return boolean
      */
-    _is_contained_by(a, b) {
+    _is_beneath(a, b) {
 
         let A=a.split(".");
         let B=b.split(".");
 
+        // A is not beneath B if any part is not the same
         while(A.length && B.length){
 
             if(A.shift()!=B.shift()) return false;
         }
+
+        // A is not beneath B if B is longer
+        if(B.length) return false;
 
         return true;
     }

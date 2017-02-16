@@ -85,6 +85,18 @@ describe("Local storage",()=>{
 		});
 	});
 
+	it("Set entire tree at empty path",()=>{
+
+		let s=new Entangld();
+		s.set("",{ "key" : "value" });
+
+		return s.get("key").then((val)=>{		
+
+			assert.deepEqual(val,"value");
+			return Promise.resolve();
+		});
+	});
+
 	it("set() accepts function (RPC mode, object as parameter)",()=>{
 
 		let s=new Entangld();
@@ -204,6 +216,17 @@ describe("Multiplexed stores",()=>{
 
 	});
 
+	it("null is an allowed value", ()=>{
+
+		b.set("system.n_ull",null);
+		return s.get("b.system.n_ull").then((val)=>{
+
+			assert.equal(val, null);
+			return Promise.resolve();
+		});
+	});
+
+
 	it("Remote get root (everything) from child store", ()=>{
 
 		return s.get("a").then((val)=>{
@@ -299,35 +322,70 @@ describe("Events",()=>{
 
 	var s=new Entangld();
 	var a=new Entangld();
+	var b=new Entangld();
 
 	s.attach("a",a);
+	s.attach("b",b);
 
 	s.transmit((msg, store)=>store.receive(msg, s));
 	a.transmit((msg)=>s.receive(msg, a));
 
-	it("Subscribe to child event (exact)", (done)=>{
+	it("Subscribe to remote event (exact)", (done)=>{
 
 		s.subscribe("a.system.voltage",(path, val)=>{
 
 			assert.equal(path,"a.system.voltage");
 			assert.equal(val, 21);
+
+			// Check for proper internals
+			assert.equal(s._subscriptions.length,1);
+			assert.equal(a._subscriptions.length,1);
 			done();
 		});
 
 		a.set("system.voltage",21);
 	});
 
-
-	it("Subscribe to child event (inferred)", (done)=>{
+	it("Subscribe to remote event (child node also triggers)", (done)=>{
 
 		s.subscribe("a.flowers.roses",(path, val)=>{
 
-			assert.equal(path, "a.flowers");
-			assert.deepEqual(val, {"roses": [1,2,3]});
+			assert.equal(path, "a.flowers.roses.color");
+			assert.deepEqual(val, "blue");
+			assert.equal(s._subscriptions.length,2);
+			assert.equal(a._subscriptions.length,2);
 			done();
 		});
 
-		a.set("flowers",{"roses": [1,2,3]});
+		a.set("flowers.roses.color","blue");
+	});
+
+
+	it("Subscribe to remote event (parent not triggers)", ()=>{
+
+		s.subscribe("b.bonnets.bees",()=>assert(false));
+		assert.equal(s._subscriptions.length,3);
+		assert.equal(b._subscriptions.length,1);
+		b.set("bonnets","");
+	});
+
+	it("Unsubscribe to remote event", ()=>{
+
+		s.subscribe("a.foo.bar",()=>assert(false));
+		assert.equal(s._subscriptions.length,4);
+		assert.equal(a._subscriptions.length,3);
+		s.unsubscribe("a.foo.bar");
+		assert.equal(s._subscriptions.length,3);
+		assert.equal(a._subscriptions.length,2);
+		s.set("a.foo.bar","");
+	});
+
+	it("Unsubscribe to all from store", ()=>{
+
+		s.unsubscribe("a");
+		assert.equal(s._subscriptions.length,1);
+		assert.equal(a._subscriptions.length,0);
+		assert.equal(b._subscriptions.length,1);
 	});
 
 });
