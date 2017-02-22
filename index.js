@@ -363,6 +363,10 @@ class Entangld {
 
         // Empty path means set everything
         if(path==="") {
+
+            // Sanity check
+            if(typeof(o)!="object") throw new Error("You are trying to set the root store to something ("+typeof(o)+") besides an object!");
+
             this._local_data=o;
             return;
         }
