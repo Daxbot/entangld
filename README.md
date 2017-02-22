@@ -140,7 +140,7 @@ Synchronized Event Store
     * [.transmit(f)](#Entangld+transmit)
     * [.receive(msg, [store])](#Entangld+receive)
     * [.set(path, the)](#Entangld+set)
-    * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>object</code>
+    * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
     * [.unsubscribe(path)](#Entangld+unsubscribe)
 
@@ -240,13 +240,13 @@ Set an object into the store
 
 <a name="Entangld+get"></a>
 
-### entangld.get(path, [params|max_depth]) ⇒ <code>object</code>
+### entangld.get(path, [params|max_depth]) ⇒ <code>Promise</code>
 Get an object from the store
 
 Note: using max_depth, especially large max_depth, involves a lot of recursion and may be expensive
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
-**Returns**: <code>object</code> - the object living at that path  
+**Returns**: <code>Promise</code> - the object living at that path  
 **Throws**:
 
 - <code>Errror</code> throws error
