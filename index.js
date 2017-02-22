@@ -233,7 +233,7 @@ class Entangld {
      * @param {string} path the path to query (like "system.voltage")
      * @param [params|max_depth] the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode)
      * @throws {Errror} throws error 
-     * @return {object} the object living at that path
+     * @return {Promise} the object living at that path
      */ 
     get(path, params) {
 

@@ -85,6 +85,19 @@ describe("Local storage",()=>{
 		});
 	});
 
+
+	it("Set/get trivial value",()=>{
+
+		let s=new Entangld();
+		s.set("temperature",33);
+
+		return s.get("temperature").then((val)=>{		
+
+			assert.equal(val,33);
+			return Promise.resolve();
+		});
+	});
+
 	it("Set entire tree at empty path",()=>{
 
 		let s=new Entangld();
@@ -214,6 +227,16 @@ describe("Multiplexed stores",()=>{
 			return Promise.resolve();
 		});
 
+	});
+
+	it("Remote set single root value into child store", ()=>{
+
+		s.set("b.something",99);
+		return b.get("something").then((val)=>{
+
+			assert.equal(val, 99);
+			return Promise.resolve();
+		});
 	});
 
 	it("null is an allowed value", ()=>{
