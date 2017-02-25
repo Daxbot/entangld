@@ -137,6 +137,8 @@ class Entangld {
         // Incoming event 
         } else if (msg.type=="event") {
 
+            if(typeof(store)=="undefined") throw new Error("Entangld receive() called without a store");
+
             // From our perspective, the path is now prepended with the store name
             let path=this._namespaces.get(store)+"."+msg.path;
 
@@ -153,7 +155,12 @@ class Entangld {
             }
 
             // No one is listening.  This may happen if an event triggers while we are still unsubscribing.
-            if(count===0) throw new Error("Store sent an event that no one is subscribed to");
+            if(count===0) {
+
+                // Reply with unsubscribe request
+                let m=new Entangld_Message("unsubscribe", msg.path);
+                this._transmit(m, store);  
+            }
 
         // Incoming remote subscription request
         } else if(msg.type=="subscribe"){
@@ -173,9 +180,8 @@ class Entangld {
                 this._subscriptions=[];
             } else {
 
-                // Unsubscribe from one
-                let idx=this._subscriptions.reduce((p,v,i)=>p||((v.path==msg.path)?i:null),null);
-                if(idx!==null) this._subscriptions.splice(idx,1);        
+                // Unsubscribe from one or more
+                this._subscriptions=this._subscriptions.filter((s)=>!this._is_beneath(msg.path, s.path));
             }
 
 
@@ -313,8 +319,30 @@ class Entangld {
     }
 
     /**
-     * Unubscribe to change events for a path
+     * Check for subscription
      *
+     * Are we subscribed to a particular remote path?
+     *
+     * @param {string} subscription the subscription to check for
+     * @return {boolean}
+     */
+     subscribed_to(path){
+
+        for(let s of this._subscriptions){
+
+            if(path==s.path) return true;
+        }
+
+        return false;
+     }
+
+    /**
+     * Unubscribe to change events for a remote path
+     *
+     * Note that this will unsubscribe from all paths that might cause events to fire for it
+     * (all paths above). For example, unsubscribe("a.cars.red.doors") will remove previous
+     * subscriptions to "a.cars.red" and "a.cars".
+     * 
      * @param {string} path the path to watch
      * @throws {Error}
      */
@@ -327,20 +355,17 @@ class Entangld {
         let store_name=tree.shift();
         let store=this._stores.get(store_name);
 
-        // Undefined store means we are trying to subscribe to something 
         if(store===undefined) throw new Error("Unable to unsubscribe to nonexistent store (please attach '"+store_name+"' first)");
 
         if(tree.length===0){
 
             // Unsubscribe from all
-            this._subscriptions=this._subscriptions.filter((s)=>!s.path.startsWith(store_name+"."));
+            this._subscriptions=this._subscriptions.filter((s)=>!(s.path==store_name || s.path.startsWith(store_name+".")));
     
         } else {
 
-            // Unsubscribe from one
-            let idx=this._subscriptions.reduce((p,v,i)=>p||((v.path==path)?i:null),null);
-            if(idx===null) throw new Error("Cannot unsubscribe to event that was not previously subscribed");
-            this._subscriptions.splice(idx,1);        
+            // Unsubscribe from one or more
+            this._subscriptions=this._subscriptions.filter((s)=>!this._is_beneath(path, s.path));
         }
 
 
@@ -419,6 +444,12 @@ class Entangld {
      * @return boolean
      */
     _is_beneath(a, b) {
+
+        // Everything is beneath the top ("")
+        if(b==="") return true;
+
+        // If paths are both blank, they are equal
+        if(b==="" && a==="") return true;
 
         let A=a.split(".");
         let B=b.split(".");

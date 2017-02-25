@@ -142,6 +142,7 @@ Synchronized Event Store
     * [.set(path, the)](#Entangld+set)
     * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
+    * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>boolean</code>
     * [.unsubscribe(path)](#Entangld+unsubscribe)
 
 <a name="Entangld+namespaces"></a>
@@ -275,10 +276,27 @@ If objects at or below this path change, you will get a callback
 | path | <code>string</code> | the path to watch |
 | f | <code>function</code> | the callback - will be of the form (path, value) |
 
+<a name="Entangld+subscribed_to"></a>
+
+### entangld.subscribed_to(subscription) ⇒ <code>boolean</code>
+Check for subscription
+
+Are we subscribed to a particular remote path?
+
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| subscription | <code>string</code> | the subscription to check for |
+
 <a name="Entangld+unsubscribe"></a>
 
 ### entangld.unsubscribe(path)
-Unubscribe to change events for a path
+Unubscribe to change events for a remote path
+
+Note that this will unsubscribe from all paths that might cause events to fire for it
+(all paths above). For example, unsubscribe("a.cars.red.doors") will remove previous
+subscriptions to "a.cars.red" and "a.cars".
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
