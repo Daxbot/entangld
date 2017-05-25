@@ -24,7 +24,7 @@ Basic use, pairing two data stores together:
 RPC mode:
 ```js
 	// Assign a function to a child key
-	child.set("double.me",(param)=>param*2);
+	child.set("double.me",(param)=>param*2);	// Or we could return a Promise instead of a value, if we wanted to!
 
 	// Call the RPC from the parent
 	parent.get("child.double.me", 2).then((val)=>{

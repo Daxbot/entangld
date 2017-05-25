@@ -261,7 +261,18 @@ class Entangld {
             // If it is a function, call it and return the result
             if(typeof(o)=="function"){
 
-                return new Promise((res)=>res(o(params)));                
+                // Call the function
+                let result=o(params);
+
+                // If the function itself returns a promise, return that promise directly
+                if(result && result.constructor && result.constructor.name && result.constructor.name=="Promise"){
+
+                    return result;
+                } else {
+
+                    // Otherwise, return a fulfilled promise with the result value
+                    return new Promise((res)=>res(result));                
+                }
             }
 
             // If params is a number, use it as a max depth and return a partial copy
