@@ -107,11 +107,27 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Over a network?
 - Subscribe to events within the datastore?
 
+## Notes
+- As of version 1.2.0, attached datastores may be located at arbitrary paths, not just in the root: 
+```parent.attach("child.goes.here", child);```
+- Also as of 1.2.0, attach()ed child stores will appear in the parent as placeholders (empty objects) when .get() is called on paths within the parent.  For example:
+```
+child.set("",{"child" : "data" });
+parent.set("",{"parent" : "data"});
+parent.attach("child", child);
+
+parent.get(""); 	// Returns { "parent" : "data", "child" : {} }
+parent.get("child"); // Returns {"child" : "data"}
+```
+This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
+- If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
+
+
 {{>main}}
 
-### TODO
+## TODO
 - Make sure incoming values request store doesn't build up 
-
+- When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 
 ## License
 MIT

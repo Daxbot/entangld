@@ -73,6 +73,9 @@ class Entangld {
         // Attach the store and namespace
         this._stores.set(namespace,store);
         this._namespaces.set(store, namespace);
+
+        // Create an empty local node so that this attach point is visible
+        this._set_local(namespace,{});
     }
 
     /**
@@ -89,6 +92,9 @@ class Entangld {
 
         if(!store) store=this._stores.get(namespace);
         if(!namespace) namespace=this._namespaces.get(store);
+
+        // Detach this namespace placeholder from the local store
+        this._set_local(namespace,undefined);
 
         return (this._stores.delete(namespace) && this._namespaces.delete(store));
     }
@@ -197,21 +203,27 @@ class Entangld {
      *
      * @param {string} path the path to set (like "system.fan.voltage")
      * @param {object} the object you want to set it to
-     * @throws {Error} Throws error on empty path
+     * @throws {Error} 
      */
     set(path, o) {
 
         // Sanity check
         if(typeof(path) !="string") throw new Error("path must be a string");
 
-        // Turn the path string into an array
-        let tree=path.split(".");
-
-        // Get the remote store
-        let store=this._stores.get(tree.shift());
+        let [store, , tree]=this._get_remote_store(path);
 
         // Set local or remote item
         if(store===undefined) {
+
+
+            // Is this going to mess with an attached store?
+            for (let [namespace] of this._stores) {
+
+                if(this._is_beneath(namespace, path)) {
+
+                    throw new Error(`Cannot set ${path} - doing so would overwrite remote store attached at ${path}.  Please detach ${path} first`);
+                }
+            }
 
             this._set_local(path,o);
 
@@ -226,11 +238,50 @@ class Entangld {
 
         } else {
          
-            this._transmit(new Entangld_Message("set", tree.join("."), o), store);
+            this._transmit(new Entangld_Message("set", tree, o), store);
         }
 
     }
- 
+
+
+    /**
+     * Get the remote store in a path
+     * 
+     * If path contains a remote store, return it as well as the relative path to the remote store
+     *
+     * Example: let A,B be stores. If A.attach("some.path.to.B", B) 
+     * then _get_remote_store("some.path.to.B.data") will return [B, "some.path.to.B", "data"]
+     * and _get_remote_store("nonexistent.path") will return [undefined, undefined, path]
+     *
+     * @private
+     * @param {string} path the path to investigate
+     * @return {array} array whose elements are [store, store name, relative path below store].  If no store is found, return value is [undefined, undefined, path].
+     */
+    _get_remote_store(path) {
+
+        // We don't know what part of path might be a store key.  So we need to get all store keys and search (vs .get)
+        for (let [namespace, store] of this._stores) {
+
+            if(path.startsWith(namespace)){
+
+                // Exact match means path is the root of the attached store
+                if(path.length == namespace.length) {
+
+                    return [store, namespace, ""];
+                }
+
+                // Path is longer than namespace. Make sure we matched up to a period
+                if(path.substr(namespace.length,1)==".") {
+
+                    return [store, namespace, path.substr(namespace.length+1)];
+                }
+            }
+        }
+
+        // Default: we did not find a store
+        return [undefined, undefined, path];
+    }
+
     /**
      * Get an object from the store
      *
@@ -246,11 +297,8 @@ class Entangld {
         // Sanity check
         if(typeof(path) !="string") throw new Error("path must be a string");
 
-        // Turn the path string into an array
-        let tree=path.split(".");
-
-        // Get the remote store
-        let store=this._stores.get(tree.shift());
+        // If an attach()ed store path masks (matches but is shorter than) the path, we are returning that store
+        let [store, , tree]=this._get_remote_store(path);
 
         // If store is undefined, we are getting a local item
         if(store===undefined) {
@@ -286,7 +334,7 @@ class Entangld {
         }
 
         // Request the data from the remote store
-        var msg=new Entangld_Message("get", tree.join("."), params);
+        var msg=new Entangld_Message("get", tree, params);
         var _this=this;
         return new Promise((res)=>{
 
@@ -310,12 +358,7 @@ class Entangld {
         // Sanity check
         if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
 
-        // Turn the path string into an array
-        let tree=path.split(".");
-
-        // Get the remote store
-        let store_name=tree.shift();
-        let store=this._stores.get(store_name);
+        let [store, store_name, tree]=this._get_remote_store(path);
 
         // Undefined store means we are trying to subscribe to something 
         if(store===undefined) throw new Error("Unable to subscribe to nonexistent store (please attach '"+store_name+"' first)");
@@ -324,7 +367,7 @@ class Entangld {
         this._subscriptions.push({path: path, callback: f});
 
         // Tell the store that we are subscribing
-        var msg=new Entangld_Message("subscribe", tree.join("."));
+        var msg=new Entangld_Message("subscribe", tree);
         this._transmit(msg, store);            
 
     }
@@ -359,12 +402,8 @@ class Entangld {
      */
     unsubscribe(path) {
 
-        // Turn the path string into an array
-        let tree=path.split(".");
 
-        // Get the remote store
-        let store_name=tree.shift();
-        let store=this._stores.get(store_name);
+        let [store, store_name, tree]=this._get_remote_store(path);
 
         if(store===undefined) throw new Error("Unable to unsubscribe to nonexistent store (please attach '"+store_name+"' first)");
 
@@ -381,7 +420,7 @@ class Entangld {
 
 
         // Tell the store that we are unsubscribing
-        var msg=new Entangld_Message("unsubscribe", tree.join("."));
+        var msg=new Entangld_Message("unsubscribe", tree);
         this._transmit(msg, store);            
     }
 
@@ -389,11 +428,11 @@ class Entangld {
     /**
      * Set local object
      *
-     * Sets object into local data store
+     * Sets object into local data store. 
      *
      * @private
      * @param {string} path the path at which to store the object
-     * @param {object} object the object to store
+     * @param {object} object the object to store.  If undefined, it unsets that path
      */
     _set_local(path, o){
 
@@ -401,9 +440,9 @@ class Entangld {
         if(path==="") {
 
             // Sanity check
-            if(typeof(o)!="object") throw new Error("You are trying to set the root store to something ("+typeof(o)+") besides an object!");
+            if(typeof(o)!="object" && typeof(o)!="undefined") throw new Error("You are trying to set the root store to something ("+typeof(o)+") besides an object!");
 
-            this._local_data=o;
+            this._local_data=(typeof(o)=="undefined")?{}:o;
             return;
         }
 
@@ -417,7 +456,14 @@ class Entangld {
             pointer=pointer[el];
         }
 
-        pointer[last]=o;
+        if(typeof(o)=="undefined"){
+
+            delete (pointer[last]);
+
+        } else {
+
+            pointer[last]=o;
+        }
     }
 
     /**

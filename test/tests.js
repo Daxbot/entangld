@@ -200,6 +200,7 @@ describe("Multiplexed stores",()=>{
 	var s=new Entangld();
 	var a=new Entangld();
 	var b=new Entangld();
+	var c=new Entangld();	// attached later
 
 	s.attach("a",a);
 	s.attach("b",b);
@@ -333,8 +334,104 @@ describe("Multiplexed stores",()=>{
 		assert.deepEqual(s.namespaces,[]);
 	});	
 
+	it("non-root child store", ()=>{
+
+		 // Set up store C (declared earlier)
+		 c.transmit((msg)=>s.receive(msg, c));
+		 c.set("val",33);
+
+		 // Attach c to s at s.more_stores.c
+		 s.set("more_stores",{"title": "store C is located at this level", "c": null});
+		 s.attach("more_stores.c",c);
+
+		 return s.get("more_stores.c.val").then((val)=>{
+
+		     assert.equal(val, 33);
+		     return Promise.resolve();
+		 });
+	});
+
+	it("Remote set into non root child store", ()=>{
+
+		s.set("more_stores.c.system.voltage",33);
+		return c.get("system.voltage").then((val)=>{
+
+			assert.equal(val, 33);
+			return Promise.resolve();
+		});
+	});
+
+	it("Remote get from non root child store", ()=>{
+
+		c.set("system.speed",45);
+		return s.get("more_stores.c.system.speed").then((val)=>{
+
+			assert.equal(val, 45);
+			return Promise.resolve();
+		});
+
+	});
+
+	it("Parent .get() shows attached child namespaces as empty objects", ()=>{
+
+		return s.get("").then((val)=>{
+
+			assert.deepEqual(val, 
+
+		      {
+		        eyes: "blue",
+		        more_stores: {
+		          c: {},
+		          title: "store C is located at this level"
+		        }
+		      });
+
+			return Promise.resolve();
+		});
+
+	});
+
+	it("set() on parent of attached store throws Error", ()=>{
+
+		return new Promise((resolve)=>{
+
+			try{
+
+				s.set("more_stores",{});
+
+			} catch(e) {
+
+				assert(e.message.match(/would overwrite/));
+				resolve();
+			}
+		});
+
+
+	});
+
+
+	it("detaching child namespace causes its name to disappear from the tree", ()=>{
+
+		s.detach(null,c);
+		return s.get("").then((val)=>{
+
+			assert.deepEqual(val, 
+
+		      {
+		        eyes: "blue",
+		        more_stores: {
+		          title: "store C is located at this level"
+		        }
+		      });
+
+			return Promise.resolve();
+		});
+
+	});
+
+
 	// Add a triple multiplexed store test
-	// Then go consider using it with DaxOS chips
+
 
 
 });
