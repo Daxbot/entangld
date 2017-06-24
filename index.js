@@ -202,7 +202,7 @@ class Entangld {
      * Set an object into the store
      *
      * @param {string} path the path to set (like "system.fan.voltage")
-     * @param {object} the object you want to set it to
+     * @param {object} object the object you want to store at that path
      * @throws {Error} 
      */
     set(path, o) {
@@ -290,7 +290,7 @@ class Entangld {
      * @param {string} path the path to query (like "system.voltage")
      * @param [params|max_depth] the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode)
      * @throws {Errror} throws error 
-     * @return {Promise} the object living at that path
+     * @return {Promise} promise resolving to the object living at that path
      */ 
     get(path, params) {
 

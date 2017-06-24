@@ -155,7 +155,7 @@ Synchronized Event Store
     * [.detach([namespace], [store])](#Entangld+detach)
     * [.transmit(f)](#Entangld+transmit)
     * [.receive(msg, [store])](#Entangld+receive)
-    * [.set(path, the)](#Entangld+set)
+    * [.set(path, object)](#Entangld+set)
     * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>boolean</code>
@@ -241,7 +241,7 @@ Call this function with the data that was sent via the transmit() callback
 
 <a name="Entangld+set"></a>
 
-### entangld.set(path, the)
+### entangld.set(path, object)
 Set an object into the store
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
@@ -253,7 +253,7 @@ Set an object into the store
 | Param | Type | Description |
 | --- | --- | --- |
 | path | <code>string</code> | the path to set (like "system.fan.voltage") |
-| the | <code>object</code> | object you want to set it to |
+| object | <code>object</code> | the object you want to store at that path |
 
 <a name="Entangld+get"></a>
 
@@ -263,7 +263,7 @@ Get an object from the store
 Note: using max_depth, especially large max_depth, involves a lot of recursion and may be expensive
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
-**Returns**: <code>Promise</code> - the object living at that path  
+**Returns**: <code>Promise</code> - promise resolving to the object living at that path  
 **Throws**:
 
 - <code>Errror</code> throws error
