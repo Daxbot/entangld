@@ -65,6 +65,57 @@ describe("Internal functions",()=>{
 
 		});
 	});
+	
+	describe("_dereferenced_copy",()=>{
+
+		let o={
+
+			"data" : { 
+				"some" : "data",
+				"more_data" : {
+
+					"more" : "data",
+					"func" : function(){ return "sasquatch!"; },
+					"promise" : function() { return new Promise((resolve)=>{  resolve("tomatoes"); }); }
+				}
+			}
+
+		};
+
+		it("convert embedded functions to values",()=>{
+
+			return e._dereferenced_copy(o).then((val)=>{
+
+				assert.deepEqual(val, 
+					{
+
+					"data" : { 
+						"some" : "data",
+						"more_data" : {
+
+							"more" : "data",
+							"func" : "sasquatch!",
+							"promise" : "tomatoes"
+							}
+						}
+					}
+				);
+
+				return Promise.resolve;
+			});
+
+		});
+
+		it("undefined passes through",()=>{
+
+			return e._dereferenced_copy(undefined).then((val)=>{
+
+				assert.equal(val, undefined);
+				return Promise.resolve;
+			});
+		});
+
+	});
 
 });
 
@@ -261,23 +312,34 @@ describe("Multiplexed stores",()=>{
 
 	});
 
-	it("Remote get from child RPC (bare value as parameter)", ()=>{
+	it("Remote get from child setter (bare value as parameter)", ()=>{
 
-		b.set("system.doubled",(param)=>param*2);
+		b.set("system.doubled",(param=1)=>param*2);
 		return s.get("b.system.doubled", 15).then((val)=>{
 
 			assert.equal(val, 30);
 			return Promise.resolve();
 		});
-
 	});
 
-	it("Remote get from child RPC (object as parameter)", ()=>{
+	it("Remote get from child setter (object as parameter)", ()=>{
 
-		a.set("system.doubled",(param)=>({ doubled: param.value*2}));
+		a.set("system.doubled",(param=1)=>({ doubled: param.value*2}));
 		return s.get("a.system.doubled", {value: 4}).then((val)=>{
 
 			assert.deepEqual(val, {doubled: 8});
+			return Promise.resolve();
+		});
+	});
+
+	it("Setter visible in _deref_mode", ()=>{
+
+		b.set("system.five",()=>5);
+		b._deref_mode=true;
+		return s.get("b.system").then((val)=>{
+
+			assert.deepEqual(val, { n_ull: null, doubled: 2, five: 5 });
+			b._deref_mode=false;
 			return Promise.resolve();
 		});
 

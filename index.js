@@ -30,7 +30,14 @@ class Entangld {
         this._local_data={};
         this._requests={};
         this._subscriptions=[] ;
-        this._partial_copy=partial_copy;        // So it is accessible for testing
+
+        // These are recursive hence global but need to be accessible for testing 
+        this._partial_copy=partial_copy;
+        this._dereferenced_copy=dereferenced_copy;
+
+        // If this is turned on, when someone .get()s an object we will query its children to see if they are functions.
+        // We will then call those functions and return their values.  This should be the default behavior, but it is rather expensive.  TODO
+        this._deref_mode=false;
     }
 
     /**
@@ -202,7 +209,7 @@ class Entangld {
      * Set an object into the store
      *
      * @param {string} path the path to set (like "system.fan.voltage")
-     * @param {object} object the object you want to store at that path
+     * @param {object} object the object or function you want to store at that path
      * @throws {Error} 
      */
     set(path, o) {
@@ -323,14 +330,27 @@ class Entangld {
                 }
             }
 
-            // If params is a number, use it as a max depth and return a partial copy
+            // If params is a number, use it as a max depth and return a Promise resolving to a dereferenced partial copy
             if(typeof(params)=="number"){
 
-                return new Promise((res)=>res(partial_copy(o,params)));
+                if(this._deref_mode){
+                    
+                    return dereferenced_copy(partial_copy(o, params));
+                } else {
+
+                    return new Promise((res)=>res(partial_copy(o,params)));
+                }
             }
 
-            // Default: return the entire object as-is
-            return new Promise((res)=>res(o));
+            // Default: return a promise resolving to the entire object as-is
+            if(this._deref_mode){
+
+                return dereferenced_copy(o);
+    
+            } else {
+
+               return new Promise((res)=>res(o));
+            }
         }
 
         // Request the data from the remote store
@@ -496,8 +516,8 @@ class Entangld {
      * Is a under b? E.g. is "system.bus.voltage" eqaual to or beneath "system.bus"?
      *
      * @private
-     * @param a string tested for "insideness"
-     * @param b string tested for "outsideness"
+     * @param {string} a the string tested for "insideness"
+     * @param {string} b the string tested for "outsideness"
      * @return boolean
      */
     _is_beneath(a, b) {
@@ -522,6 +542,77 @@ class Entangld {
 
         return true;
     }
+
+
+
+}
+
+/** 
+ * Deep copy an object
+ *
+ * Uses JSON parse methods so things that don't work in JSON will disappear, with the special exception of functions which  
+ * are replaced by their return values (or if the function returns a promise, the value that it resolves to).
+ *
+ * If you pass undefined, it will return a promise resolving to undefined.
+ * 
+ * @param {object} o the object to copy.  
+ * @return {Promise} result a promise resolving to a completely new, de-referenced object only containing objects and values
+ */
+function dereferenced_copy(original) {
+
+    // Undefined passes through
+    if(typeof(original)=="undefined") return new Promise((res)=>{ res(undefined);});
+
+    // Make a copy of o.  It will be missing any functions
+    let copy=JSON.parse(JSON.stringify(original));
+
+    // A container to hold the copy (so we can have a recursive function replace it using a key)
+    let container={ "copy" : copy};
+
+    // We will store our promises here
+    let promises=[];
+
+    // Recursively call all functions in o, placing their values in copy.  Promises are tracked also.
+    function recurse(o, c, parent, key){
+
+        // If o is a function, get its value and return a promise
+        if(typeof(o)=="function"){
+
+            // Call the function
+            let result=o();
+
+            // If the function itself returns a promise, save it and make it replace the object with a result
+            if(result && result.constructor && result.constructor.name && result.constructor.name=="Promise"){
+
+                promises.push(promises, result);
+                result.then((val)=>{
+
+                    parent[key]=val;
+                });
+            } else {
+
+                // Replace the object directly
+                parent[key]=result;
+            }
+
+            return;
+        }
+
+
+        // If o is not an object, return
+        if(typeof(o)!="object") return;
+
+        // Otherwise, iterate keys and call ourselves recursively
+        for(let key in o){
+
+            recurse(o[key], c[key], c, key);
+        }
+    }
+
+    recurse(original, copy, container, "copy");
+
+    // Wait for all promises to fulfil, then return the copy
+    return Promise.all(promises).then(()=>Promise.resolve(copy));
 }
 
 /** 

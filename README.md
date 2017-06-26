@@ -21,10 +21,10 @@ Basic use, pairing two data stores together:
 	// Get it back in the parent
 	parent.get("child.system.voltage");		// == 33
 ```
-RPC mode:
+Using getter functions as values:
 ```js
 	// Assign a function to a child key
-	child.set("double.me",(param)=>param*2);	// Or we could return a Promise instead of a value, if we wanted to!
+	child.set("double.me",(param=0)=>param*2);	// Or we could return a Promise instead of a value, if we wanted to!
 
 	// Call the RPC from the parent
 	parent.get("child.double.me", 2).then((val)=>{
@@ -33,6 +33,8 @@ RPC mode:
 	});
 
 ```
+Note in this example how we set a default value for this getter function (0).  This is because when _deref_mode is ```true``` this getter will be called without any arguments.
+
 Pub/sub (remote events):
 ```js
 	// Assign an event callback
@@ -122,6 +124,15 @@ parent.get("child"); // Returns {"child" : "data"}
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
 
+## _deref_mode
+If you attach a key to a getter function instead of a value, that function would never be called until you request that key directly (i.e. querying the parent of that key would not reveal that that key exists).  This changed in 1.2.1, when _deref_mode was introduced.  If you set _deref_mode to true, it will iterate all leaves and try to call all functions.  Those that return Promise will have their Promise resolved before the result is actually returned.
+
+This is pretty cool, and after consideration it is probably the way this thing should work all the time.  However it also introduces two problems which are not yet resolved (//TODO):
+
+First, in an effort to not accidentally mutate the original data set, a copy is made.  This is somewhat inefficient.
+Second, when the copy is made, JSON.parse/JSON.stringify are used.  This means that leaves consisting of Map() or the like are just erased.
+
+If these two issues can be resolved at some point, _deref_mode will probably be turned on permanently.  Honestly, for remote stores operating over sockets it's probably not a huge issue.  More to the point are local stores where the user might be storing non JSON-compatible items.
 
 ## Classes
 
@@ -131,6 +142,16 @@ This is because we would have to perform recursive child queries to show you a c
 </dd>
 <dt><a href="#Entangld">Entangld</a> ⇐ <code>EventEmitter</code></dt>
 <dd><p>Synchronized Event Store</p>
+</dd>
+</dl>
+
+## Functions
+
+<dl>
+<dt><a href="#dereferenced_copy">dereferenced_copy(o)</a> ⇒ <code>Promise</code></dt>
+<dd><p>Deep copy an object</p>
+<p>Uses JSON parse methods so things that don&#39;t work in JSON will disappear, with the special exception of functions which<br>are replaced by their return values (or if the function returns a promise, the value that it resolves to).</p>
+<p>If you pass undefined, it will return a promise resolving to undefined.</p>
 </dd>
 </dl>
 
@@ -253,7 +274,7 @@ Set an object into the store
 | Param | Type | Description |
 | --- | --- | --- |
 | path | <code>string</code> | the path to set (like "system.fan.voltage") |
-| object | <code>object</code> | the object you want to store at that path |
+| object | <code>object</code> | the object or function you want to store at that path |
 
 <a name="Entangld+get"></a>
 
@@ -324,10 +345,28 @@ subscriptions to "a.cars.red" and "a.cars".
 | --- | --- | --- |
 | path | <code>string</code> | the path to watch |
 
+<a name="dereferenced_copy"></a>
+
+## dereferenced_copy(o) ⇒ <code>Promise</code>
+Deep copy an object
+
+Uses JSON parse methods so things that don't work in JSON will disappear, with the special exception of functions which  
+are replaced by their return values (or if the function returns a promise, the value that it resolves to).
+
+If you pass undefined, it will return a promise resolving to undefined.
+
+**Kind**: global function  
+**Returns**: <code>Promise</code> - result a promise resolving to a completely new, de-referenced object only containing objects and values  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| o | <code>object</code> | the object to copy. |
+
 
 ## TODO
 - Make sure incoming values request store doesn't build up 
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
+- Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
 
 ## License
 MIT
