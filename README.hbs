@@ -3,10 +3,33 @@
 Synchronized key-value stores with RPCs and pub/sub events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
 ## Examples
-Basic use, pairing two data stores together:
+Basic use:
 ```js
-	var parent=new Entangld();
-	var child=new Entangld();
+	let e=new Entangld();
+
+	// Simple set/get
+	e.set("number.six",6);
+	e.get("number.six").then((val)=>{}); 	// val==6
+
+	// Functions as values
+	e._deref_mode=true;
+	e.set("number.seven",()=>{ return 7;});
+	e.get("number").then((val)=>{}); 		// val => { six:6, seven, 7}
+
+	// Promises from functions
+	e.set("number.eight",()=>{ return new Promise((resolve)=>{ resolve(8); }); });
+	e.get("number.eight").then((val)=>{}); 	// val==8
+
+	// Even dereference beneath functions
+	e.set("eenie.meenie",()=>{ return {"miney": "moe"}; });
+	e.get("eenie.meenie.miney").then((val)=>{});	// val=="moe"
+
+```
+
+Pairing two data stores together:
+```js
+	let parent=new Entangld();
+	let child=new Entangld();
 
 	// Attach child namespace
 	s.attach("child",child);
@@ -21,7 +44,7 @@ Basic use, pairing two data stores together:
 	// Get it back in the parent
 	parent.get("child.system.voltage");		// == 33
 ```
-Using getter functions as values:
+Using getter functions as RPC:
 ```js
 	// Assign a function to a child key
 	child.set("double.me",(param=0)=>param*2);	// Or we could return a Promise instead of a value, if we wanted to!
@@ -49,8 +72,8 @@ Pub/sub (remote events):
 ```
 Over sockets:
 ```js
-var Sockhop=require("sockhop");
-var Entangld=require("entangld");
+const Sockhop=require("sockhop");
+const Entangld=require("entangld");
 var parent=new Entangld();
 
 

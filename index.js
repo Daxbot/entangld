@@ -31,7 +31,7 @@ class Entangld {
         this._requests={};
         this._subscriptions=[] ;
 
-        // These are recursive hence global but need to be accessible for testing 
+        // These are global but need to be accessible for various reasons (i.e. testing)
         this._partial_copy=partial_copy;
         this._dereferenced_copy=dereferenced_copy;
 
@@ -311,26 +311,26 @@ class Entangld {
         if(store===undefined) {
 
             // Get a reference to the object
-            let o=this._get_local(path);
+            let [o, remaining_path]=extract_from_path(this._local_data, path);
 
-            // If it is a function, call it and return the result
+            // If it is a function, call it
             if(typeof(o)=="function"){
 
-                // Call the function
                 let result=o(params);
 
-                // If the function itself returns a promise, return that promise directly
-                if(result && result.constructor && result.constructor.name && result.constructor.name=="Promise"){
+                // Get a promise resolving to the result
+                let p=(result && result.constructor && result.constructor.name && result.constructor.name=="Promise")?
+                    result:new Promise((res)=>res(result));                
 
-                    return result;
-                } else {
+                return p.then((val)=>{
 
-                    // Otherwise, return a fulfilled promise with the result value
-                    return new Promise((res)=>res(result));                
-                }
+                    // If we have a remaining path, try to navigate it before returning
+                    [o, remaining_path]=extract_from_path(val, remaining_path);
+                    return Promise.resolve((remaining_path==="")?o:undefined);
+                });
             }
 
-            // If params is a number, use it as a max depth and return a Promise resolving to a dereferenced partial copy
+            // Path does not point to function.  So use params as a max depth and return a Promise resolving to a dereferenced partial copy of o
             if(typeof(params)=="number"){
 
                 if(this._deref_mode){
@@ -487,30 +487,6 @@ class Entangld {
     }
 
     /**
-     * Get local object
-     *
-     * Gets object at path from local data store
-     *
-     * @private
-     * @param {string} path the path at which to fetch the object
-     * @return {object} object the object at that path
-     */
-    _get_local(path) {
-
-        // Empty path means get everything
-        if(path==="") return this._local_data;
-
-        try {
-    
-            return path.split(".").reduce((p,v)=>p[v],this._local_data);
-
-        } catch(e) {
-
-            return undefined;
-        }
-    }
-
-    /**
      * Is beneath
      *
      * Is a under b? E.g. is "system.bus.voltage" eqaual to or beneath "system.bus"?
@@ -613,6 +589,49 @@ function dereferenced_copy(original) {
 
     // Wait for all promises to fulfil, then return the copy
     return Promise.all(promises).then(()=>Promise.resolve(copy));
+}
+
+
+/**
+ * Extract from path 
+ *
+ * Given an object, extracts a child object using a string path
+ *
+ * @private
+ * @param {object} obj the object we are extracting from 
+ * @param {string} path the path to find beneath obj
+ * @return {Array} array containing [result, remaining_path].  result===undefined if path can't be found.  If we encounter a function in our search, result will be the function and remaining_path will be the remaining part of path  
+ */
+function extract_from_path(obj, path) {
+
+    // Empty path means get everything
+    if(path==="") return [obj, ""];
+
+
+    let keys=path.split(".");
+    let key;
+    let o=obj;
+
+    while((key=keys.shift())) {
+
+        if(o[key]) {
+
+            o=o[key];
+
+            // If o is a function, we can't go any farther
+            if(typeof(o)=='function'){
+
+                return [o, keys.join(".")];
+            }
+
+        } else {
+
+            return [undefined, ""];
+        }        
+
+    }
+
+    return [o, ""];
 }
 
 /** 

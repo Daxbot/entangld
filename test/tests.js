@@ -189,6 +189,20 @@ describe("Local storage",()=>{
 		});
 	});
 
+	it("get() subpath below function returns properly",()=>{
+
+		let s=new Entangld();
+
+		// Assign a function to "a.b.c.d"
+		s.set("a.b.c.d",()=>{ return { "sub" : "path" }; });
+
+		return s.get("a.b.c.d.sub").then((val)=>{		
+
+			assert.equal(val,"path");
+			return Promise.resolve();
+		});
+	});
+
 	it("get() accepts optional max_depth parameter",()=>{
 
 		let s=new Entangld();
@@ -233,7 +247,7 @@ describe("Local storage",()=>{
 		});
 	});
 
-	it("Get invalid value returns undefined",()=>{
+	it("Get invalid path returns undefined",()=>{
 
 		let s=new Entangld();
 		return s.get("a.b.c.d").then((val)=>{
@@ -243,6 +257,19 @@ describe("Local storage",()=>{
 		});
 	});
 
+	it("get() invalid path below function returns undefined",()=>{
+
+		let s=new Entangld();
+
+		// Assign a function to "a.b.c.d"
+		s.set("a.b.c.d",()=>{ return { "sub" : "path" }; });
+
+		return s.get("a.b.c.d.doesnotexist").then((val)=>{		
+
+			assert(val===undefined);
+			return Promise.resolve();
+		});
+	});
 });
 
 
