@@ -1,4 +1,5 @@
 node_modules/
 dmd/
 jsdoc-api/
+._*
 

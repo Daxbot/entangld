@@ -136,6 +136,20 @@ describe("Local storage",()=>{
 		});
 	});
 
+	it(".push()",()=>{
+
+		let s=new Entangld();
+		s.set("arr",[]);
+
+		s.push("arr",1);
+		s.push("arr",2);
+
+		return s.get("arr").then((val)=>{		
+
+			assert.equal(val.length,2);
+			return Promise.resolve();
+		});
+	});
 
 	it("Set/get trivial value",()=>{
 
@@ -355,6 +369,18 @@ describe("Multiplexed stores",()=>{
 		return s.get("a.system.doubled", {value: 4}).then((val)=>{
 
 			assert.deepEqual(val, {doubled: 8});
+			return Promise.resolve();
+		});
+	});
+
+
+	it("Remote push to attached child", ()=>{
+
+		s.set("a.arr",[]);
+		s.push("a.arr",1);
+		return s.get("a.arr").then((val)=>{
+
+			assert.equal(val.length, 1);
 			return Promise.resolve();
 		});
 	});

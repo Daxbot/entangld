@@ -133,6 +133,11 @@ class Entangld {
 
             this.set(msg.path, msg.value);
 
+        // Remote "push" request
+        } else if(msg.type=="push") {
+
+            this.push(msg.path, msg.value);
+
         // Remote "get" request
         } else if(msg.type=="get") {
 
@@ -205,14 +210,32 @@ class Entangld {
         }
     }
 
+
     /**
-     * Set an object into the store
+     * Push an object into an array in the store
+     *
+     * Convenience method for set(path, o, "push")
      *
      * @param {string} path the path to set (like "system.fan.voltage")
      * @param {object} object the object or function you want to store at that path
      * @throws {Error} 
      */
-    set(path, o) {
+    push(path, o) {
+
+        this.set(path, o, "push");
+
+    }
+
+
+    /**
+     * Set an object into the store
+     *
+     * @param {string} path the path to set (like "system.fan.voltage")
+     * @param {object} object the object or function you want to store at that path
+     * @param {string} [operation_type="set"] whether to set or push the new data (push only works if the data item exists and is an array)
+     * @throws {Error} 
+     */
+    set(path, o, operation_type="set") {
 
         // Sanity check
         if(typeof(path) !="string") throw new Error("path must be a string");
@@ -232,7 +255,7 @@ class Entangld {
                 }
             }
 
-            this._set_local(path,o);
+            this._set_local(path,o, operation_type);
 
             // Check subscriptions to see if we need to run an event
             for(let s of this._subscriptions){
@@ -245,7 +268,7 @@ class Entangld {
 
         } else {
          
-            this._transmit(new Entangld_Message("set", tree, o), store);
+            this._transmit(new Entangld_Message(operation_type, tree, o), store);
         }
 
     }
@@ -453,8 +476,10 @@ class Entangld {
      * @private
      * @param {string} path the path at which to store the object
      * @param {object} object the object to store.  If undefined, it unsets that path
+     * @param {string} [operation_type="set"] whether to set or push the new data (push only works if the data item exists and is an array)
+     * @throw {Error} error
      */
-    _set_local(path, o){
+    _set_local(path, o, operation_type="set"){
 
         // Empty path means set everything
         if(path==="") {
@@ -476,12 +501,27 @@ class Entangld {
             pointer=pointer[el];
         }
 
+        // Handle unset operations
         if(typeof(o)=="undefined"){
 
             delete (pointer[last]);
+            return;
+        } 
+
+        if(operation_type=="push"){
+
+            if (pointer[last] && typeof(pointer[last].push)=="function") {
+
+                pointer[last].push(o);
+
+            } else {
+
+                throw new Error("You cannon .push() to that object");
+            }
 
         } else {
 
+            // Default to set
             pointer[last]=o;
         }
     }

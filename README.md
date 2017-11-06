@@ -199,7 +199,8 @@ Synchronized Event Store
     * [.detach([namespace], [store])](#Entangld+detach)
     * [.transmit(f)](#Entangld+transmit)
     * [.receive(msg, [store])](#Entangld+receive)
-    * [.set(path, object)](#Entangld+set)
+    * [.push(path, object)](#Entangld+push)
+    * [.set(path, object, [operation_type])](#Entangld+set)
     * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, f)](#Entangld+subscribe)
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>boolean</code>
@@ -283,10 +284,12 @@ Call this function with the data that was sent via the transmit() callback
 | msg | <code>object</code> | the message that was given to the callback |
 | [store] | <code>object</code> | the Entangld store that sent the message |
 
-<a name="Entangld+set"></a>
+<a name="Entangld+push"></a>
 
-### entangld.set(path, object)
-Set an object into the store
+### entangld.push(path, object)
+Push an object into an array in the store
+
+Convenience method for set(path, o, "push")
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
 **Throws**:
@@ -298,6 +301,23 @@ Set an object into the store
 | --- | --- | --- |
 | path | <code>string</code> | the path to set (like "system.fan.voltage") |
 | object | <code>object</code> | the object or function you want to store at that path |
+
+<a name="Entangld+set"></a>
+
+### entangld.set(path, object, [operation_type])
+Set an object into the store
+
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+**Throws**:
+
+- <code>Error</code> 
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to set (like "system.fan.voltage") |
+| object | <code>object</code> |  | the object or function you want to store at that path |
+| [operation_type] | <code>string</code> | <code>&quot;\&quot;set\&quot;&quot;</code> | whether to set or push the new data (push only works if the data item exists and is an array) |
 
 <a name="Entangld+get"></a>
 
