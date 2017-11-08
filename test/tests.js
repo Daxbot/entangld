@@ -151,6 +151,23 @@ describe("Local storage",()=>{
 		});
 	});
 
+	it(".push() to non-array throws error",(done)=>{
+
+		let s=new Entangld();
+		s.set("arr",2);		// It's a number, not an array
+
+		try {
+			
+			s.push("arr",1);
+
+		} catch(e) {
+
+			assert.equal(e.message, "You cannon .push() to that object");
+			done();
+		}
+
+	});
+
 	it("Set/get trivial value",()=>{
 
 		let s=new Entangld();
