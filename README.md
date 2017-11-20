@@ -146,6 +146,7 @@ parent.get("child"); // Returns {"child" : "data"}
 ```
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
+- As of version 1.4.0, you may subscribe() to a local event.  This should probably be eventually replaced with native events.  In other words, instead of ```.subscribe("a.b.c", callback)``` we should use ```.on("path.a.b.c", callback)```
 
 ## _deref_mode
 If you attach a key to a getter function instead of a value, that function would never be called until you request that key directly (i.e. querying the parent of that key would not reveal that that key exists).  This changed in 1.2.1, when _deref_mode was introduced.  If you set _deref_mode to true, it will iterate all leaves and try to call all functions.  Those that return Promise will have their Promise resolved before the result is actually returned.
@@ -410,6 +411,7 @@ If you pass undefined, it will return a promise resolving to undefined.
 - Make sure incoming values request store doesn't build up 
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
+- Fix unit tests so they are completely independent (tests often depend on prior test ending with a particular state)
 
 ## License
 MIT

@@ -598,7 +598,7 @@ describe("Events",()=>{
 		a.set("system.voltage",21);
 	});
 
-	it("Subscribe to remote event (child node also triggers)", (done)=>{
+	it("Subscribe to remote event (descendant of subscribed path also triggers event)", (done)=>{
 
 		s.subscribe("a.flowers.roses",(path, val)=>{
 
@@ -619,6 +619,7 @@ describe("Events",()=>{
 		assert.equal(s._subscriptions.length,3);
 		assert.equal(b._subscriptions.length,1);
 		b.set("bonnets","");
+
 	});
 
 	it("Unsubscribe to remote event", ()=>{
@@ -638,7 +639,46 @@ describe("Events",()=>{
 		assert.equal(s._subscriptions.length,1);
 		assert.equal(a._subscriptions.length,0);
 		assert.equal(b._subscriptions.length,1);
+
+		// Clean up, now that we are done with b
+		s.unsubscribe("b.bonnets.bees");
+
 	});
+
+
+	it("Subscribe to local event (exact)", (done)=>{
+
+		s.subscribe("my.own.event",(path, val)=>{
+
+			assert.equal(path,"my.own.event");
+			assert.equal(val, "hello");
+
+			done();
+		});
+
+		s.set("my.own.event","hello");
+	});
+
+	it("Unsubscribe to local event", ()=>{
+
+		s.unsubscribe("my.own.event");
+		assert.equal(s._subscriptions.length,0);
+	});
+
+	it("Subscribe to local event (descendant of subscribed path also triggers event)", (done)=>{
+
+		s.subscribe("my.own.other",(path, val)=>{
+
+			assert.equal(path,"my.own.other.event");
+			assert.equal(val, "hello");
+
+			done();
+		});
+
+		s.set("my.own.other.event","hello");
+	});
+
+
 
 });
 

@@ -401,17 +401,18 @@ class Entangld {
         // Sanity check
         if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
 
-        let [store, store_name, tree]=this._get_remote_store(path);
-
-        // Undefined store means we are trying to subscribe to something 
-        if(store===undefined) throw new Error("Unable to subscribe to nonexistent store (please attach '"+store_name+"' first)");
+        let [store, /*store_name*/, tree]=this._get_remote_store(path);
 
         // Add to our subscriptions list
         this._subscriptions.push({path: path, callback: f});
 
-        // Tell the store that we are subscribing
-        var msg=new Entangld_Message("subscribe", tree);
-        this._transmit(msg, store);            
+        // If we have a store, the subscription is to a remote event
+        if(store) {
+
+            // Tell the store that we are subscribing
+            var msg=new Entangld_Message("subscribe", tree);
+            this._transmit(msg, store);            
+        }
 
     }
 
@@ -448,8 +449,6 @@ class Entangld {
 
         let [store, store_name, tree]=this._get_remote_store(path);
 
-        if(store===undefined) throw new Error("Unable to unsubscribe to nonexistent store (please attach '"+store_name+"' first)");
-
         if(tree.length===0){
 
             // Unsubscribe from all
@@ -461,10 +460,13 @@ class Entangld {
             this._subscriptions=this._subscriptions.filter((s)=>!this._is_beneath(path, s.path));
         }
 
-
-        // Tell the store that we are unsubscribing
-        var msg=new Entangld_Message("unsubscribe", tree);
-        this._transmit(msg, store);            
+        // Handle remote subscriptions
+        if(store) {
+    
+            // Tell the store that we are unsubscribing
+            var msg=new Entangld_Message("unsubscribe", tree);
+            this._transmit(msg, store);            
+        }
     }
 
 
