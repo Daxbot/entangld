@@ -185,8 +185,9 @@ class Entangld {
 
             this._subscriptions.push({path: msg.path, callback: (path, val)=>{
 
-                // This is a remote subscription, so when we are called we need to send the value
-                this._transmit(new Entangld_Message("event", path, val));
+                let _store=store;   // Save the store for later use
+
+                this._transmit(new Entangld_Message("event", path, val), _store);    // This is a remote subscription, so when we are called we need to send the value
             }});            
 
         // Incoming remote subscription request

@@ -678,6 +678,28 @@ describe("Events",()=>{
 		s.set("my.own.other.event","hello");
 	});
 
+	var x=new Entangld();
+	var y=new Entangld();
+
+	x.attach("y",y);
+	y.attach("x",x);
+
+	x.transmit((msg, store)=>store.receive(msg, x));
+	y.transmit((msg)=>x.receive(msg, y));
+
+	it("Child subscribe to parent event", (done)=>{
+
+		y.subscribe("x.something",(path, val)=>{
+
+			assert.equal(path,"x.something");
+			assert.equal(val, 21);
+
+			done();
+		});
+
+		x.set("something",21);
+	});
+
 
 
 });
