@@ -32,7 +32,7 @@ Pairing two data stores together:
 	let child=new Entangld();
 
 	// Attach child namespace
-	s.attach("child",child);
+	parent.attach("child",child);
 
 	// Configure communications
 	parent.transmit((msg, store)=>store.receive(msg));	// store === child in this example
