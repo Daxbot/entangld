@@ -132,6 +132,8 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Subscribe to events within the datastore?
 
 ## Notes
+
+- As of version 1.5.0, subscriptions may be created across multiple chained datastores.  Subscription removal now acts on all subscriptions matching (but not beneath) a given path.  To unsubscribe a tree, use ```unsubscribe_tree()```
 - As of version 1.2.0, attached datastores may be located at arbitrary paths, not just in the root: 
 ```parent.attach("child.goes.here", child);```
 - Also as of 1.2.0, attach()ed child stores will appear in the parent as placeholders (empty objects) when .get() is called on paths within the parent.  For example:
@@ -164,6 +166,9 @@ If these two issues can be resolved at some point, _deref_mode will probably be 
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
 - Fix unit tests so they are completely independent (tests often depend on prior test ending with a particular state)
+- Detaching a store does not unsubscribe to any subscriptions from or through that store and may therefore leave things in a dirty or unstable state.  We could unsubscribe_tree(store_name) but that would not take care of passthrough subscriptions (those that don't belong to us)
+- unsubscribe_tree() needs to have a test ensuring errors are thrown if not all subs can be removed
+- Entangld_Message does not have a .payload member or some such, just a .path.  Yet for some subscribe related tasks we need to pass a payload, do we end up with a clumsy .path.path (vs .data.path or .payload.path)
 
 ## License
 MIT

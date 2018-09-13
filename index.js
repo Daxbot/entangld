@@ -183,26 +183,29 @@ class Entangld {
         // Incoming remote subscription request
         } else if(msg.type=="subscribe"){
 
-            this._subscriptions.push({path: msg.path, callback: (path, val)=>{
+            // Create a new subscription that simply transmits when triggered
+            let _store=store;  
+            this._subscribe(msg.path.path, (path, val) => {
 
-                let _store=store;   // Save the store for later use
-
-                this._transmit(new Entangld_Message("event", path, val), _store);    // This is a remote subscription, so when we are called we need to send the value
-            }});            
+                this._transmit(new Entangld_Message("event", path, val), _store); 
+            }, _store, msg.path.uuid);
 
         // Incoming remote subscription request
         } else if(msg.type=="unsubscribe"){
 
-            if(msg.path===""){
+            // Unsubscribe to any matching subscriptions.  
+           // console.log(`rcvd unsubscribe for ${JSON.stringify(msg)}`);
+            // this._subscriptions.forEach((s)=>console.log(s.uuid));
 
-                // Unsubscribe from all
-                this._subscriptions=[];
-            } else {
+            // this._subscriptions.forEach((o)=>{
 
-                // Unsubscribe from one or more
-                this._subscriptions=this._subscriptions.filter((s)=>!this._is_beneath(msg.path, s.path));
-            }
 
+            //     console.log(`comparing ${o.uuid} with ${msg.path.uuid}`);
+            // });
+
+           // console.log(this._subscriptions.filter((o)=>(o.uuid==msg.path.uuid)).length);
+           // console.log("asdasd"+JSON.stringify(this._subscriptions));
+            this._unsubscribe(this._subscriptions.filter((o)=>(o.uuid==msg.path.uuid)));
 
         // Default
         } else {
@@ -392,27 +395,62 @@ class Entangld {
      * Subscribe to change events for a path
      *
      * If objects at or below this path change, you will get a callback
+     *
+     * Subscriptions to keys within attach()ed stores are remote subscriptions.  If several stores are attached in some kind of 
+     * arrangement, a given key may actually traverse multiple stores!  Since each store only knows its immediate neighbors - and
+     * has no introspection into those neigbors - each store is only able to keeps track of the neighbor on each side with
+     * respect to a particular path and has no knowledge of the eventual endpoints.  
+     *
+     * For example, let's suppose capital letters represent Entangld stores and lowercase letters are actual
+     * objects.  Then  the path "A.B.c.d.E.F.g.h" will represent a subscription that traverses four Entangld stores.  From the point of 
+     * view of a store in the middle - say, E - the "upstream" is B and the "downstream" is F.
+     *
+     * Each store involved keeps track of any subscriptions with which it is involved.  It tracks the upstream and downstream, and 
+     * the uuid of the subscription.  The uuid is the same across all stores for a given subscription.  For a particular store, the 
+     * upstream is null if it is the original link in the chain, and the downstream is null if this store owns the endpoint value.
+     *
      * @param {string} path the path to watch
      * @param {function} f the callback - will be of the form (path, value)
      * @throws {Error} error thrown on empty path
+     * @return {Promise} promise resolving to the subscription UUID
      */
     subscribe(path, f) {
 
+        this._subscribe(path, f);
+    }
+
+    /**
+     * Create a subscription
+     *
+     * This is an internal function that allows us to specify the new subscription's upstream and UUID
+     *
+     * @private
+     * @param {string} path the path to watch
+     * @param {function} f the callback - will be of the form (path, value)
+     * @param {Entangld} [upstream] the Engangld next upstream in the path, if there is one
+     * @param {Uuid} [uuid] the UUID to use for this subscription
+     * @throws {Error} error thrown on empty path
+     * @return {Promise} promise resolving to the subscription UUID
+     */
+    _subscribe(path, f, upstream=null, uuid=null) {
+
+        // Supply a UUID if none provided 
+        uuid=uuid||Uuid();
 
         // Sanity check
         if(!path || typeof(path) !="string") throw new Error("path is null or not set to a string");
-
         let [store, /*store_name*/, tree]=this._get_remote_store(path);
 
         // Add to our subscriptions list
-        this._subscriptions.push({path: path, callback: f});
+        this._subscriptions.push({path: path, downstream: store||null, upstream: upstream, uuid: uuid, callback: f});
 
         // If we have a store, the subscription is to a remote event
         if(store) {
 
             // Tell the store that we are subscribing
-            var msg=new Entangld_Message("subscribe", tree);
-            this._transmit(msg, store);            
+            var msg=new Entangld_Message("subscribe", {path: tree, uuid: uuid});
+            this._transmit(msg, store); 
+
         }
 
     }
@@ -436,40 +474,84 @@ class Entangld {
      }
 
     /**
-     * Unubscribe to change events for a remote path
+     * Unubscribe to change events for a given path
      *
-     * Note that this will unsubscribe from all paths that might cause events to fire for it
-     * (all paths above). For example, unsubscribe("a.cars.red.doors") will remove previous
-     * subscriptions to "a.cars.red" and "a.cars".
+     * Caution - all events belonging to you with the given path will be deleted
      * 
-     * @param {string} path the path to watch
+     * @param {string} path the path to unwatch
+     * @return {number} number of subscriptions removed
      * @throws {Error}
      */
     unsubscribe(path) {
 
+        // Find subscriptions that (1) belongs to us (no upstream), (2) match the given path.  Passthrough subscriptions (from other stores) are kept safe
+        let matching_subscriptions=this._subscriptions.filter((s)=>(s.path==path && s.upstream===null));
 
-        let [store, store_name, tree]=this._get_remote_store(path);
+        // Throw an error if none found
+        if(matching_subscriptions.length==0) {
 
-        if(tree.length===0){
-
-            // Unsubscribe from all
-            this._subscriptions=this._subscriptions.filter((s)=>!(s.path==store_name || s.path.startsWith(store_name+".")));
-    
-        } else {
-
-            // Unsubscribe from one or more
-            this._subscriptions=this._subscriptions.filter((s)=>!this._is_beneath(path, s.path));
+            throw new Error(`unsubscribe found ${matching_subscriptions.length} subscriptions matching ${path}`);
         }
 
-        // Handle remote subscriptions
-        if(store) {
-    
-            // Tell the store that we are unsubscribing
-            var msg=new Entangld_Message("unsubscribe", tree);
-            this._transmit(msg, store);            
-        }
+        this._unsubscribe(matching_subscriptions);
+
+        return matching_subscriptions.length;
     }
 
+    /**
+     * Unsubscribe tree
+     *
+     * Remove any subscriptions that are beneath a path
+     *
+     * @throws {Error} error if there are stores we cannot detach (i.e. they belong to someone else / upstream != null)
+     */
+    unsubscribe_tree(path) {
+
+        let _this=this;
+        this._unsubscribe(this._subscriptions.filter((sub)=>(sub.upstream==null && _this._is_beneath(sub.path, path))));
+
+        // Error on any remaining subscriptions where upstream was not null
+        if(this._subscriptions.filter((sub)=>(_this._is_beneath(sub.path, path))).length) {
+
+            throw new Error(`Unable to completely unsubscribe the tree '${path}' because some subscriptions are remote or passthrough (we are not the owner, just a downstream`);
+        }
+
+
+    }
+
+    /**
+     * Unubscribe to change events 
+     *
+     * This is an internal function that does not check for safety.  It simply deletes the requested paths and notifies any downstream.
+     * 
+     * @private
+     * @param {array} subscriptions an array of objects containing at minimum uuid and upstream keys
+     * @throws {Error}
+     */
+    _unsubscribe(subscriptions) {
+
+        // Remove the subscriptions //HACK this is a pretty inefficient way to do this if we have a lot of them
+        subscriptions.forEach((sub)=>{
+
+            this._subscriptions=this._subscriptions.filter((s)=>!(s.uuid==sub.uuid));
+        });
+
+
+        // Notify the downstream for any deleted subscriptions that are remote
+        subscriptions
+            .filter((sub)=>{
+
+                let [store,,]=this._get_remote_store(sub.path);
+                return store?true:false;
+            })
+            .forEach((sub)=>{
+
+                // Tell the store that we are unsubscribing
+                this._transmit(new Entangld_Message("unsubscribe", {uuid: sub.uuid}), sub.downstream);   
+                // console.log(`sending an unsubscribe for '${sub.uuid}'`);         
+            });
+    
+    }
 
     /**
      * Set local object

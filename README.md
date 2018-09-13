@@ -74,7 +74,6 @@ Over sockets:
 ```js
 const Sockhop=require("sockhop");
 const Entangld=require("entangld");
-var parent=new Entangld();
 
 
 /**
@@ -133,6 +132,8 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Subscribe to events within the datastore?
 
 ## Notes
+
+- As of version 1.5.0, subscriptions may be created across multiple chained datastores.  Subscription removal now acts on all subscriptions matching (but not beneath) a given path.  To unsubscribe a tree, use ```unsubscribe_tree()```
 - As of version 1.2.0, attached datastores may be located at arbitrary paths, not just in the root: 
 ```parent.attach("child.goes.here", child);```
 - Also as of 1.2.0, attach()ed child stores will appear in the parent as placeholders (empty objects) when .get() is called on paths within the parent.  For example:
@@ -203,9 +204,10 @@ Synchronized Event Store
     * [.push(path, object)](#Entangld+push)
     * [.set(path, object, [operation_type])](#Entangld+set)
     * [.get(path, [params|max_depth])](#Entangld+get) ⇒ <code>Promise</code>
-    * [.subscribe(path, f)](#Entangld+subscribe)
+    * [.subscribe(path, f)](#Entangld+subscribe) ⇒ <code>Promise</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>boolean</code>
-    * [.unsubscribe(path)](#Entangld+unsubscribe)
+    * [.unsubscribe(path)](#Entangld+unsubscribe) ⇒ <code>number</code>
+    * [.unsubscribe_tree()](#Entangld+unsubscribe_tree)
 
 <a name="Entangld+namespaces"></a>
 
@@ -341,12 +343,26 @@ Note: using max_depth, especially large max_depth, involves a lot of recursion a
 
 <a name="Entangld+subscribe"></a>
 
-### entangld.subscribe(path, f)
+### entangld.subscribe(path, f) ⇒ <code>Promise</code>
 Subscribe to change events for a path
 
 If objects at or below this path change, you will get a callback
 
+Subscriptions to keys within attach()ed stores are remote subscriptions.  If several stores are attached in some kind of 
+arrangement, a given key may actually traverse multiple stores!  Since each store only knows its immediate neighbors - and
+has no introspection into those neigbors - each store is only able to keeps track of the neighbor on each side with
+respect to a particular path and has no knowledge of the eventual endpoints.  
+
+For example, let's suppose capital letters represent Entangld stores and lowercase letters are actual
+objects.  Then  the path "A.B.c.d.E.F.g.h" will represent a subscription that traverses four Entangld stores.  From the point of 
+view of a store in the middle - say, E - the "upstream" is B and the "downstream" is F.
+
+Each store involved keeps track of any subscriptions with which it is involved.  It tracks the upstream and downstream, and 
+the uuid of the subscription.  The uuid is the same across all stores for a given subscription.  For a particular store, the 
+upstream is null if it is the original link in the chain, and the downstream is null if this store owns the endpoint value.
+
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+**Returns**: <code>Promise</code> - promise resolving to the subscription UUID  
 **Throws**:
 
 - <code>Error</code> error thrown on empty path
@@ -372,14 +388,13 @@ Are we subscribed to a particular remote path?
 
 <a name="Entangld+unsubscribe"></a>
 
-### entangld.unsubscribe(path)
-Unubscribe to change events for a remote path
+### entangld.unsubscribe(path) ⇒ <code>number</code>
+Unubscribe to change events for a given path
 
-Note that this will unsubscribe from all paths that might cause events to fire for it
-(all paths above). For example, unsubscribe("a.cars.red.doors") will remove previous
-subscriptions to "a.cars.red" and "a.cars".
+Caution - all events belonging to you with the given path will be deleted
 
 **Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+**Returns**: <code>number</code> - number of subscriptions removed  
 **Throws**:
 
 - <code>Error</code> 
@@ -387,7 +402,19 @@ subscriptions to "a.cars.red" and "a.cars".
 
 | Param | Type | Description |
 | --- | --- | --- |
-| path | <code>string</code> | the path to watch |
+| path | <code>string</code> | the path to unwatch |
+
+<a name="Entangld+unsubscribe_tree"></a>
+
+### entangld.unsubscribe_tree()
+Unsubscribe tree
+
+Remove any subscriptions that are beneath a path
+
+**Kind**: instance method of <code>[Entangld](#Entangld)</code>  
+**Throws**:
+
+- <code>Error</code> error if there are stores we cannot detach (i.e. they belong to someone else / upstream != null)
 
 <a name="dereferenced_copy"></a>
 
@@ -412,6 +439,9 @@ If you pass undefined, it will return a promise resolving to undefined.
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
 - Fix unit tests so they are completely independent (tests often depend on prior test ending with a particular state)
+- Detaching a store does not unsubscribe to any subscriptions from or through that store and may therefore leave things in a dirty or unstable state.  We could unsubscribe_tree(store_name) but that would not take care of passthrough subscriptions (those that don't belong to us)
+- unsubscribe_tree() needs to have a test ensuring errors are thrown if not all subs can be removed
+- Entangld_Message does not have a .payload member or some such, just a .path.  Yet for some subscribe related tasks we need to pass a payload, do we end up with a clumsy .path.path (vs .data.path or .payload.path)
 
 ## License
 MIT
