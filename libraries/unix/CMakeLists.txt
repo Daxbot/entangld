@@ -4,6 +4,8 @@ project(entangld VERSION 1.0.0 LANGUAGES CXX)
 
 enable_testing()
 
+set(PROJECT_DESCRIPTION "Synchronized key-value stores with RPCs and pub/sub events")
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
