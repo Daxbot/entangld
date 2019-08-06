@@ -1,10 +1,16 @@
+/** Entangld - Synchronized key-value stores with RPCs and pub/sub events.
+ *
+ * @file Datastore.cpp
+ * @author Wilkins White
+ * @copyright 2019 Nova Dynamics LLC
+ */
+
 #include <stdexcept>
 #include <uuid/uuid.h>
 
 #include "Datastore.h"
 
-using json = nlohmann::json;
-
+/** Generates a UUID and returns it in a std::string. */
 static std::string get_uuidstring()
 {
     union {
@@ -48,7 +54,7 @@ namespace entangld
                 local_path = '/' + local_path;
             }
 
-            auto ptr = json::json_pointer(local_path);
+            auto ptr = nlohmann::json::json_pointer(local_path);
 
             Message msg;
             msg.type = "value";
@@ -73,7 +79,7 @@ namespace entangld
         }
     }
 
-    void Datastore::set(std::string path, json value, bool push)
+    void Datastore::set(std::string path, nlohmann::json value, bool push)
     {
         std::string ns = parse_namespace(path);
         if(ns.empty()) {
@@ -84,7 +90,7 @@ namespace entangld
                 local_path = '/' + local_path;
             }
 
-            auto ptr = json::json_pointer(local_path);
+            auto ptr = nlohmann::json::json_pointer(local_path);
 
             if(push) {
                 m_local_data[ptr].push_back(value);
@@ -110,6 +116,7 @@ namespace entangld
             }
         }
         else {
+            // Data is in remote store
             Message msg;
             msg.type = (push) ? "push" : "set";
             msg.path = path.substr(ns.size()+1, path.size()-ns.size()-1);
@@ -137,6 +144,7 @@ namespace entangld
 
         std::string ns = parse_namespace(path);
         if(ns.empty()) {
+            // Data is in local store
             std::string local_path = path;
             if(!local_path.empty()) {
                 replace(local_path.begin(), local_path.end(), '.', '/');
@@ -144,10 +152,11 @@ namespace entangld
             }
 
             sub.remote = nullptr;
-            sub.ptr = json::json_pointer(local_path);
+            sub.ptr = nlohmann::json::json_pointer(local_path);
             sub.msg.path = path;
         }
         else {
+            // Data is in remote store
             sub.remote = &m_remotes[ns];
             sub.msg.path = path.substr(ns.size()+1, path.size()-ns.size()-1);
             transmit(sub.remote, sub.msg);
@@ -169,14 +178,14 @@ namespace entangld
                     return false;
 
                 if(ns.empty()) {
-                    // Local
+                    // Data is in local store
                     if(path.rfind(sub.msg.path, 0) != std::string::npos) {
                         count += 1;
                         return true;
                     }
                 }
                 else {
-                    // Remote
+                    // Data is in remote store
                     if(sub.remote && path.rfind(ns + '.' + sub.msg.path, 0) != std::string::npos) {
                         Message msg;
                         msg.type = "unsubscribe";

@@ -31,8 +31,20 @@ include(GNUInstallDirs)
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/entangld)
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/entangld
+)
 
 configure_file(entangld.pc.in entangld.pc @ONLY)
 
-install(FILES ${CMAKE_BINARY_DIR}/entangld.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
+install(
+    FILES ${CMAKE_BINARY_DIR}/entangld.pc
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig
+)
+
+option(BUILD_DOC "Build documentation" ON)
+
+find_package(Doxygen)
+if (DOXYGEN_FOUND)
+    configure_file(Doxyfile.in Doxyfile @ONLY)
+    add_custom_target(doc COMMAND ${DOXYGEN_EXECUTABLE} Doxyfile VERBATIM)
+endif (DOXYGEN_FOUND)
