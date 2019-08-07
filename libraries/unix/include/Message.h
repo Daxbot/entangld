@@ -20,7 +20,7 @@ namespace entangld
             typedef void (*handler_t)(const Message &msg, void *ctx);
 
             std::string type;       /**< Message type. @see Datastore::receive */
-            std::string path;       /**< Datastore path that the message is referencing. */
+            nlohmann::json path;    /**< Datastore path that the message is referencing. */
             std::string uuid;       /**< Unique identifier for request tracking. */
             nlohmann::json value;   /**< Message payload. */
     };
@@ -51,8 +51,9 @@ namespace entangld
     static void from_json(const nlohmann::json &j, Message &msg)
     {
         j.at("data").at("type").get_to(msg.type);
-        j.at("data").at("path").get_to(msg.path);
         j.at("data").at("uuid").get_to(msg.uuid);
+
+        msg.path = j.at("data").at("path");
 
         if(j.at("data").find("value") != j.at("data").end())
             msg.value = j.at("data").at("value");

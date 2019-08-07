@@ -104,12 +104,13 @@ namespace entangld
                 if(sub.remote)
                     continue;
 
-                if(path.rfind(sub.msg.path, 0) != std::string::npos) {
+                std::string sub_path = sub.msg.path.at("path").get<std::string>();
+                if(path.rfind(sub_path, 0) != std::string::npos) {
                     Message msg;
                     msg.type = "event";
-                    msg.path = sub.msg.path;
+                    msg.path = sub.msg.path.at("path");
                     msg.value = m_local_data[sub.ptr];
-                    msg.uuid = sub.msg.uuid;
+                    msg.uuid = sub.msg.path.at("uuid");
 
                     sub.callback(msg, sub.callback_ctx);
                 }
@@ -121,7 +122,6 @@ namespace entangld
             msg.type = (push) ? "push" : "set";
             msg.path = path.substr(ns.size()+1, path.size()-ns.size()-1);
             msg.value = value;
-            msg.uuid = "";
 
             remote_t *remote = &m_remotes[ns];
             transmit(remote, msg);
@@ -136,9 +136,11 @@ namespace entangld
     {
         assert(callback != nullptr);
 
+        if(uuid.empty())
+            uuid = get_uuidstring();
+
         request_t sub;
         sub.msg.type = "subscribe";
-        sub.msg.uuid = (uuid.empty()) ? get_uuidstring() : uuid;
         sub.callback = callback;
         sub.callback_ctx = callback_ctx;
 
@@ -153,12 +155,18 @@ namespace entangld
 
             sub.remote = nullptr;
             sub.ptr = nlohmann::json::json_pointer(local_path);
-            sub.msg.path = path;
+            sub.msg.path = {
+                {"path", path},
+                {"uuid", uuid}
+            };
         }
         else {
             // Data is in remote store
             sub.remote = &m_remotes[ns];
-            sub.msg.path = path.substr(ns.size()+1, path.size()-ns.size()-1);
+            sub.msg.path = {
+                {"path", path.substr(ns.size()+1, path.size()-ns.size()-1)},
+                {"uuid", uuid}
+            };
             transmit(sub.remote, sub.msg);
         }
 
@@ -179,14 +187,16 @@ namespace entangld
 
                 if(ns.empty()) {
                     // Data is in local store
-                    if(path.rfind(sub.msg.path, 0) != std::string::npos) {
+                    std::string sub_path = sub.msg.path.at("path").get<std::string>();
+                    if(path.rfind(sub_path, 0) != std::string::npos) {
                         count += 1;
                         return true;
                     }
                 }
                 else {
                     // Data is in remote store
-                    if(sub.remote && path.rfind(ns + '.' + sub.msg.path, 0) != std::string::npos) {
+                    std::string sub_path = sub.msg.path.at("path").get<std::string>();
+                    if(sub.remote && path.rfind(ns + '.' + sub_path, 0) != std::string::npos) {
                         Message msg;
                         msg.type = "unsubscribe";
                         msg.uuid = sub.msg.uuid;
@@ -264,7 +274,9 @@ namespace entangld
             for(auto it = m_subs.begin(); it != m_subs.end(); ++it) {
                 const request_t &sub = *it;
                 if(sub.remote && sub.remote->name == name) {
-                    if(msg.path.rfind(sub.msg.path, 0) != std::string::npos) {
+                    std::string msg_path = msg.path.get<std::string>();
+                    std::string sub_path = sub.msg.path.at("path").get<std::string>();
+                    if(msg_path.rfind(sub_path, 0) != std::string::npos) {
                         sub.callback(msg, sub.callback_ctx);
                     }
                 }
@@ -272,17 +284,17 @@ namespace entangld
         }
         else if(msg.type == "subscribe") {
             subscribe(
-                msg.path,
+                msg.path.at("path"),
                 [](const Message &msg, void *ctx) {
                     remote_t *remote = static_cast<remote_t*>(ctx);
                     transmit(remote, msg);
                 },
                 &m_remotes[name],
-                msg.uuid
+                msg.path.at("uuid")
             );
         }
         else if(msg.type == "unsubscribe") {
-            unsubscribe(msg.path, msg.uuid);
+            unsubscribe(msg.path.at("path"), msg.path.at("uuid"));
         }
     }
 
