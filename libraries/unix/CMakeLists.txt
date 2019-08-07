@@ -10,8 +10,8 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(JSON_Install ON CACHE INTERNAL "")
 set(JSON_BuildTests OFF CACHE INTERNAL "")
-set(JSON_Install OFF CACHE INTERNAL "")
 
 add_subdirectory(extern/json)
 add_subdirectory(test)
@@ -25,7 +25,12 @@ set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "include/Datastor
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
-target_link_libraries(${PROJECT_NAME} uuid nlohmann_json::nlohmann_json)
+set(LIBS uuid nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} ${LIBS})
+
+foreach(LIB ${LIBS})
+  set(PC_LIBS "${PC_LIBS} -l${LIB} ")
+endforeach()
 
 include(GNUInstallDirs)
 
