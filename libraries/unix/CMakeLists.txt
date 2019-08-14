@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(entangld VERSION 1.0.0 LANGUAGES CXX)
+project(entangld VERSION 1.0.0)
 
 # Clone submodules
 find_package(Git QUIET)
@@ -52,14 +52,20 @@ endforeach()
 
 configure_file(entangld.pc.in entangld.pc @ONLY)
 
-# Create 'test' target
+# Optionally build samples
+option(ENTANGLD_BUILD_SAMPLES "Build samples" OFF)
+if(ENTANGLD_BUILD_SAMPLES)
+    add_subdirectory(samples)
+endif()
+
+# Optionally build tests
 option(ENTANGLD_BUILD_TESTS "Build tests" OFF)
 if(ENTANGLD_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
 
-# Create 'doc' target
+# Add 'docs' target
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
     configure_file(Doxyfile.in Doxyfile @ONLY)
