@@ -28,6 +28,9 @@ namespace entangld
             explicit Datastore(const nlohmann::json &data = nlohmann::json::object())
             : m_local_data(data) {};
 
+            /** Delete all subscriptions and detach from namespaces. */
+            void reset();
+
             /** Asyncronously retrieves a value from the store.
              *
              * @param [in] path location of the data to be retrieved.

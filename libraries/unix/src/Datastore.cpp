@@ -37,6 +37,13 @@ static std::string get_uuidstring()
 
 namespace entangld
 {
+    void Datastore::reset()
+    {
+        m_remotes.clear();
+        m_requests.clear();
+        m_subs.clear();
+    }
+
     void Datastore::get(
         std::string path,
         void (*callback)(const Message &msg, void *ctx),
@@ -60,7 +67,7 @@ namespace entangld
             msg.type = "value";
             msg.path = path;
             msg.uuid = (uuid.empty()) ? get_uuidstring() : uuid;
-            msg.value = m_local_data.at(ptr);
+            msg.value = m_local_data.value(ptr, nlohmann::json(nullptr));
 
             callback(msg, callback_ctx);
         }
