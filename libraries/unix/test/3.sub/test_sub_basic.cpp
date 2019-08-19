@@ -5,7 +5,7 @@
 
 using namespace entangld;
 
-static bool test_done[3] = {false, false, false};
+volatile bool test_done[3] = {false, false, false};
 
 int main(int argc, char *argv[])
 {

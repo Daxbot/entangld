@@ -5,7 +5,7 @@
 
 using namespace entangld;
 
-static bool test_done[2] = {false, false};
+volatile bool test_done[2] = {false, false};
 
 int main(int argc, char *argv[])
 {
@@ -39,18 +39,8 @@ int main(int argc, char *argv[])
 
     store_a->subscribe("store_b.name", [](const Message &msg, void*){
         assert(msg.value.at("first") == "Bruce");
+        assert(msg.value.at("last") == "Wayne");
         test_done[0] = true;
-    });
-
-    store_b->set("name", {
-        {"first", "Bruce"},
-        {"middle", nullptr},
-        {"last", "Wayne"}
-    });
-
-    store_b->subscribe("store_a.name", [](const Message &msg, void*){
-        assert(msg.value.at("first") == "Alfred");
-        test_done[1] = true;
     });
 
     store_a->set("name", {
@@ -58,6 +48,19 @@ int main(int argc, char *argv[])
         {"middle", "Thaddeus Crane"},
         {"last", "Pennyworth"}
     });
+
+    store_b->set("name", {
+        {"first", "Bruce"},
+        {"last", "Wayne"}
+    });
+
+    store_b->subscribe("store_a.name", [](const Message &msg, void*){
+        assert(msg.value.at("first") == "Alfred");
+        assert(msg.value.at("last") == "Beagle");
+        test_done[1] = true;
+    });
+
+    store_a->set("name.last", "Beagle");
 
     time_t start = time(nullptr);
     while(!test_done[0] || !test_done[1]) {
