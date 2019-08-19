@@ -3,7 +3,8 @@
 
 using namespace entangld;
 
-int main(int argc, char *argv[])
+/** Remote 'set' test - set and retrieve remote value. */
+int main()
 {
     Datastore *store_a = new Datastore({
         {"name", "Alfred"},
@@ -33,20 +34,24 @@ int main(int argc, char *argv[])
         store_a
     );
 
-    store_a->get("store_b.name", [](const Message &msg, void*){
-        assert(msg.value == "Bruce");
+    store_a->set("store_b.name", {
+        {"first", "Bruce"},
+        {"middle", nullptr},
+        {"last", "Wayne"}
     });
 
-    store_a->get("store_b.occupation", [](const Message &msg, void*){
-        assert(msg.value == "Batman");
+    store_b->set("store_a.name", {
+        {"first", "Alfred"},
+        {"middle", "Thaddeus Crane"},
+        {"last", "Pennyworth"}
     });
 
-    store_b->get("store_a.name", [](const Message &msg, void*){
+    store_a->get("name.first", [](const Message &msg, void*){
         assert(msg.value == "Alfred");
     });
 
-    store_b->get("store_a.occupation", [](const Message &msg, void*){
-        assert(msg.value == "Butler");
+    store_b->get("name.first", [](const Message &msg, void*){
+        assert(msg.value == "Bruce");
     });
 
     delete store_a;

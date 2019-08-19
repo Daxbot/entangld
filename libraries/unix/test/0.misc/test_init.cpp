@@ -3,12 +3,14 @@
 
 using namespace entangld;
 
-int main(int argc, char *argv[])
+/** Init test. */
+int main()
 {
     Datastore *store = nullptr;
 
     // Default constructor
     store = new Datastore;
+    assert(store);
     delete store;
 
     // JSON constructor
@@ -17,6 +19,7 @@ int main(int argc, char *argv[])
         {"b", 2},
         {"c", 3},
     });
+    assert(store);
     delete store;
 
     return EXIT_SUCCESS;
