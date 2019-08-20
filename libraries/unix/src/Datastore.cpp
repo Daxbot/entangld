@@ -188,9 +188,16 @@ namespace entangld
         m_subs.erase(std::remove_if(
             m_subs.begin(), m_subs.end(),
             [&](const request_t &sub) {
-                // Remote unsubscribe must provide a matching UUID
-                if(!uuid.empty() && uuid != sub.msg.uuid)
-                    return false;
+                if(!uuid.empty()) {
+                    if(uuid != sub.msg.uuid) {
+                        // Ignore subscriptions that don't match UUID
+                        return false;
+                    }
+                    else if(path.empty()) {
+                        // Remove all subscriptions matching UUID
+                        return true;
+                    }
+                }
 
                 if(ns.empty()) {
                     // Data is in local store
@@ -301,7 +308,14 @@ namespace entangld
             );
         }
         else if(msg.type == "unsubscribe") {
-            unsubscribe(msg.path.at("path"), msg.path.at("uuid"));
+            if(msg.path.is_string()) {
+                // Path is a string
+                unsubscribe(msg.path.get<std::string>(), msg.uuid);
+            }
+            else {
+                // Path is an object containing path and uuid
+                unsubscribe(msg.path.value("path", ""), msg.path.value("uuid", ""));
+            }
         }
     }
 
