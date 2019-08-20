@@ -21,5 +21,11 @@ if(ENTANGLD_BUILD_SAMPLES)
             NAME "node_subscribe"
             COMMAND ${NODEJS} test_sub.js
         )
+
+        configure_file(test_unsub.js.in test_unsub.js @ONLY)
+        add_test(
+            NAME "node_unsubscribe"
+            COMMAND ${NODEJS} test_unsub.js
+        )
     endif()
 endif()
