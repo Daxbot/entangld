@@ -32,15 +32,12 @@ namespace entangld
      */
     static void to_json(nlohmann::json &j, const Message &msg)
     {
-        j = nlohmann::json {
-            {"type", "Entangld_Message"},
-            {"data", {
-                {"type",    msg.type},
-                {"path",    msg.path},
-                {"value",   msg.value},
-                {"uuid",    msg.uuid},
-            }}
-        };
+        j["type"] = msg.type;
+        j["path"] = msg.path;
+        j["uuid"] = msg.uuid;
+
+        if(!msg.value.empty())
+            j["value"] = msg.value;
     }
 
     /** Allows extraction of a Message object from json.
@@ -50,13 +47,11 @@ namespace entangld
      */
     static void from_json(const nlohmann::json &j, Message &msg)
     {
-        j.at("data").at("type").get_to(msg.type);
-        j.at("data").at("uuid").get_to(msg.uuid);
+        j.at("type").get_to(msg.type);
+        j.at("uuid").get_to(msg.uuid);
 
-        msg.path = j.at("data").at("path");
-
-        if(j.at("data").find("value") != j.at("data").end())
-            msg.value = j.at("data").at("value");
+        msg.path = j.value("path", nlohmann::json(nullptr));
+        msg.value = j.value("value", nlohmann::json(nullptr));
     }
 }
 
