@@ -11,6 +11,9 @@
 using json = nlohmann::json;
 using namespace entangld;
 
+/** Sample version. */
+constexpr char VERSION[] = "1.0.0";
+
 /** Default Host port. */
 constexpr int DEFAULT_PORT = 50001;
 
@@ -32,6 +35,7 @@ static void print_help(const char *name)
 {
     printf("\n");
     printf("Author: Wilkins White\n");
+    printf("Version: %s\n", VERSION);
     printf("Copyright: Nova Dynamics, 2019\n");
     printf("\n");
     printf("Usage:\n");
@@ -47,10 +51,10 @@ static void print_help(const char *name)
 
 int main(int argc, char *argv[])
 {
-    // Initialize settings
     unsigned int port = DEFAULT_PORT;
     int print_level = 1;
     bool silent = false;
+    int flags = 0;
 
     while(1) {
         int c = getopt_long(argc, argv, "Hsvp:", long_shared, NULL);
@@ -83,13 +87,23 @@ int main(int argc, char *argv[])
 
     // Create Datastore
     DEBUG_VERBOSE("Creating store");
-    Datastore *store = new Datastore();
+    Datastore *store = new Datastore({
+        {"name", "Entangld server"},
+        {"version", std::string(VERSION)},
+        {"port", port}
+    });
 
     // Set up listen socket
     DEBUG_VERBOSE("creating socket");
     int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(listen_fd < 0) {
         DEBUG_ERROR("socket creation error: %s", strerror(errno));
+        return EXIT_FAILURE;
+    }
+
+    flags = 1;
+    if(setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(int)) < 0) {
+        DEBUG_ERROR("setsockopt error: %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -109,7 +123,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    int flags = fcntl(listen_fd, F_GETFL, 0);
+    flags = fcntl(listen_fd, F_GETFL, 0);
     fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
 
     // Capture SIGINT and set shutdown_flag for cleanup
@@ -160,10 +174,7 @@ int main(int argc, char *argv[])
                         json j = json::parse(start, end);
                         DEBUG_VERBOSE("RX: %s", j.dump().c_str());
 
-                        if(j["type"] == "Entangld_Message") {
-                            Message msg = j.get<Message>();
-                            store->receive(msg, "client");
-                        }
+                        store->receive(j.get<Message>(), "client");
 
                         size -= (end - start);
                         start = end;

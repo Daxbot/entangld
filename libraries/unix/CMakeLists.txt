@@ -52,7 +52,7 @@ endforeach()
 
 configure_file(entangld.pc.in entangld.pc @ONLY)
 
-# Optionally build samples
+# Optionally build samples (required for Node tests)
 option(ENTANGLD_BUILD_SAMPLES "Build samples" OFF)
 if(ENTANGLD_BUILD_SAMPLES)
     add_subdirectory(samples)

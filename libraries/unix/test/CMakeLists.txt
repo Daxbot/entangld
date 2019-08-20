@@ -14,3 +14,6 @@ add_subdirectory(3.sub)
 
 # Unsubscription tests
 add_subdirectory(4.unsub)
+
+# NodeJS integration tests
+add_subdirectory(5.node)
