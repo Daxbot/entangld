@@ -1,6 +1,6 @@
 {
   "name": "entangld",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
   "jshintConfig": {
@@ -18,11 +18,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://bitbucket.org/novadynamics/entangld.git"
+    "url": "https://github.com/DaxBot/entangld"
   },
   "author": "c0d3",
-  "license": "SEE LICENSE IN README.md",
-  "homepage": "https://bitbucket.org/novadynamics/entangld#readme",
+  "license": "MIT",
   "devDependencies": {
     "fs-then-native": "^2.0.0",
     "jsdoc-to-markdown": "^3.0.0",
