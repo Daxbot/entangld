@@ -1,0 +1,41 @@
+const Entangld = require("@CMAKE_SOURCE_DIR@/../../index.js")
+const assert = require("assert");
+const net = require("net");
+const { spawn } = require('child_process');
+
+// Start server and create socket
+console.log("Spawning server");
+const server = spawn("@CMAKE_BINARY_DIR@/samples/server", ['-vvv'], {stdio: 'inherit'});
+
+process.on('exit', ()=>{
+    console.log("Shutting down server");
+    server.kill();
+});
+
+timeout = setTimeout(() => {
+    throw new Error("Timeout");
+}, 2000);
+
+setTimeout(() => {
+    const socket = new net.Socket();
+    console.log("Connecting to server");
+    socket.connect(50001, '127.0.0.1');
+
+    // Spawn store and attach to socket
+    const store = new Entangld();
+    store.attach("server", socket);
+    store.transmit((msg, socket) => socket.write(JSON.stringify(msg) + '\n'));
+
+    socket.on("data", (data) => store.receive(JSON.parse(data), socket));
+    socket.on("close", () => store.detach(null, socket))
+    socket.on("error", (error) => console.log(error));
+
+    // Read port value from server
+    console.log("Requesting value");
+    store.get("server.port").then((value) => {
+        console.log("Got value: " + String(value));
+        clearTimeout(timeout);
+        assert(value == 50001);
+        process.exit();
+    });
+}, 200);
