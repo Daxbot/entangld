@@ -21,8 +21,8 @@ describe("Events",()=>{
 
 		s.subscribe("my.own.event",(path, val)=>{
 
-			assert.equal(path,"my.own.event");
-			assert.equal(val, "hello");
+			assert.strictEqual(path,"my.own.event");
+			assert.strictEqual(val, "hello");
 
 			done();
 		});
@@ -33,19 +33,19 @@ describe("Events",()=>{
 	it("Unsubscribe to local event", ()=>{
 
 		s.unsubscribe("my.own.event");
-		assert.equal(s._subscriptions.length,0);
+		assert.strictEqual(s._subscriptions.length,0);
 	});
 
 	it("Subscribe to remote event (exact)", (done)=>{
 
 		s.subscribe("a.system.voltage",(path, val)=>{
 
-			assert.equal(path,"a.system.voltage");
-			assert.equal(val, 21);
+			assert.strictEqual(path,"a.system.voltage");
+			assert.strictEqual(val, 21);
 
 			// Check for proper internals
-			assert.equal(s._subscriptions.length,1);
-			assert.equal(a._subscriptions.length,1);
+			assert.strictEqual(s._subscriptions.length,1);
+			assert.strictEqual(a._subscriptions.length,1);
 			done();
 		});
 
@@ -56,22 +56,21 @@ describe("Events",()=>{
 
 		s.subscribe("a.flowers.roses",(path, val)=>{
 
-			assert.equal(path, "a.flowers.roses.color");
-			assert.deepEqual(val, "blue");
-			assert.equal(s._subscriptions.length,2);
-			assert.equal(a._subscriptions.length,2);
+			assert.strictEqual(path, "a.flowers.roses.color");
+			assert.deepStrictEqual(val, "blue");
+			assert.strictEqual(s._subscriptions.length,2);
+			assert.strictEqual(a._subscriptions.length,2);
 			done();
 		});
 
 		a.set("flowers.roses.color","blue");
 	});
 
-
 	it("Subscribe to remote event (setting parent variable not triggers subscription to child)", ()=>{
 
 		s.subscribe("b.bonnets.bees",()=>assert(false));
-		assert.equal(s._subscriptions.length,3);
-		assert.equal(b._subscriptions.length,1);
+		assert.strictEqual(s._subscriptions.length,3);
+		assert.strictEqual(b._subscriptions.length,1);
 		b.set("bonnets","");
 
 	});
@@ -79,33 +78,32 @@ describe("Events",()=>{
 	it("Unsubscribe to remote event", ()=>{
 
 		s.subscribe("a.foo.bar",()=>assert(false));
-		assert.equal(s._subscriptions.length,4);
-		assert.equal(a._subscriptions.length,3);
+		assert.strictEqual(s._subscriptions.length,4);
+		assert.strictEqual(a._subscriptions.length,3);
 		s.unsubscribe("a.foo.bar");
-		assert.equal(s._subscriptions.length,3);
-		assert.equal(a._subscriptions.length,2);
+		assert.strictEqual(s._subscriptions.length,3);
+		assert.strictEqual(a._subscriptions.length,2);
 		s.set("a.foo.bar","");
 	});
 
 	it("Unsubscribe tree", ()=>{
 
 		s.unsubscribe_tree("a");
-		assert.equal(s._subscriptions.length,1);
-		assert.equal(a._subscriptions.length,0);
-		assert.equal(b._subscriptions.length,1);
+		assert.strictEqual(s._subscriptions.length,1);
+		assert.strictEqual(a._subscriptions.length,0);
+		assert.strictEqual(b._subscriptions.length,1);
 
 		// // Clean up, now that we are done with b
 		// s.unsubscribe("b.bonnets.bees");
 
 	});
 
-
 	it("Subscribe to local event (descendant of subscribed path also triggers event)", (done)=>{
 
 		s.subscribe("my.own.other",(path, val)=>{
 
-			assert.equal(path,"my.own.other.event");
-			assert.equal(val, "hello");
+			assert.strictEqual(path,"my.own.other.event");
+			assert.strictEqual(val, "hello");
 
 			done();
 		});
@@ -126,8 +124,8 @@ describe("Events",()=>{
 
 		y.subscribe("x.something",(path, val)=>{
 
-			assert.equal(path,"x.something");
-			assert.equal(val, 21);
+			assert.strictEqual(path,"x.something");
+			assert.strictEqual(val, 21);
 
 			done();
 		});
@@ -135,13 +133,12 @@ describe("Events",()=>{
 		x.set("something",21);
 	});
 
-
 	it("Child subscribe to sibling event", (done)=>{
 
 		a.subscribe("parent.b.rubbish.bin",(path, val)=>{
 
-			assert.equal(path,"parent.b.rubbish.bin");
-			assert.equal(val, "boot");
+			assert.strictEqual(path,"parent.b.rubbish.bin");
+			assert.strictEqual(val, "boot");
 
 			done();
 		});
@@ -149,6 +146,22 @@ describe("Events",()=>{
 		b.set("rubbish.bin","boot");
 	});
 
+	it("Child subscribe to sibling event (before sibling attaches)", (done)=>{
 
+		var c=new Entangld();
 
+		a.subscribe("parent.c.rubbish.bin",(path, val)=>{
+
+			assert.strictEqual(path,"parent.c.rubbish.bin");
+			assert.strictEqual(val, "boot");
+
+			done();
+		});
+
+		s.attach("c",c);
+		c.attach("parent", s);
+		c.transmit((msg)=>s.receive(msg, c));
+
+		c.set("rubbish.bin","boot");
+	});
 });

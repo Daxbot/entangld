@@ -163,18 +163,15 @@ function extract_from_path(obj, path) {
 function partial_copy(o, max_depth) {
 
     // Trivial case, return object untouched if no max_depth
-    if (typeof (max_depth) != "number")
-        return o;
+    if (typeof (max_depth) != "number") return o;
 
     // If o is not an object, return it
-    if (typeof (o) != "object")
-        return o;
+    if (typeof (o) != "object") return o;
 
     let c =  (Array.isArray(o)) ? [] : {};
 
     // If max_depth has been exceeded, return the empty object or array
-    if (max_depth < 0)
-        return c;
+    if (max_depth < 0) return c;
 
     // Otherwise, iterate keys and call ourselves recursively
     for (let key in o) {
@@ -270,6 +267,18 @@ class Entangld {
 
         // Create an empty local node so that this attach point is visible
         this._set_local(namespace, {});
+
+        // Find and update any subscriptions that fall beneath the new namespace
+        const subscriptions = this._subscriptions.filter(
+            (sub) => sub.path.startsWith(namespace))
+
+        // Clean up the old entries
+        this._unsubscribe(subscriptions)
+
+        // Re-subscribe
+        subscriptions.forEach((sub) => {
+            this._subscribe(sub.path, sub.callback, sub.upstream, sub.uuid)
+        });
     }
 
     /**
