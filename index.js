@@ -37,14 +37,13 @@ class EntangldError extends Error {
  *
  * @private
  * @param {object} original the object to copy.
- *
  * @return {Promise} a promise resolving to a completely new, de-referenced
  * object containing only objects and values.
  */
 function dereferenced_copy(original) {
 
     // Undefined passes through
-    if (typeof (original) == "undefined")
+    if (original === undefined)
         return new Promise((res) => { res(undefined); });
 
     // Make a copy of o.  It will be missing any functions
@@ -112,7 +111,6 @@ function dereferenced_copy(original) {
  * @private
  * @param {object} obj the object we are extracting from.
  * @param {string} path the path to find beneath obj.
- *
  * @return {Array<object, string>} array containing [result, remaining_path].
  * result will be undefined if path can't be found.  If we encounter a function
  * in our search, result will be the function and remaining_path will be the
@@ -135,7 +133,7 @@ function extract_from_path(obj, path) {
             o = o[key];
 
             // If o is a function, we can't go any farther
-            if (typeof (o) == 'function') {
+            if (typeof (o) == "function") {
 
                 return [o, keys.join(".")];
             }
@@ -157,8 +155,8 @@ function extract_from_path(obj, path) {
  *
  * @private
  * @param {object} object the object to copy
- * @param {number} max_depth the maximum depth to copy (max_depth==0 returns
- * object keys)
+ * @param {number} max_depth the maximum depth to copy (0 returns object keys)
+ * @return {object} partial copy of an object limited by max_depth.
  */
 function partial_copy(o, max_depth) {
 
@@ -243,27 +241,26 @@ class Entangld {
      * Attach a namespace and a store
      *
      * @param {string} namespace a namespace for this store.
-     * @param {object} context an object that will be sent along with "transmit"
+     * @param {object} obj an object that will be sent along with "transmit"
      * callbacks when we need something from this store.
-     *
-     * @throws {TypeError} if namespace is null or empty.
-     * @throws {Error} if you try to attach to the same namespace twice.
+     * @throws {TypeError} if namespace/obj is null or empty.
+     * @throws {EntangldError} if you try to attach to the same namespace twice.
      */
-    attach(namespace, context) {
+    attach(namespace, obj) {
 
         // Sanity checks
         if (!namespace)
             throw TypeError("You cannot attach() a null or empty namespace");
 
-        if (!context)
-            throw TypeError("You cannot attach() a null or empty context");
+        if (!obj)
+            throw TypeError("You cannot attach() a null or empty object");
 
         if (this._stores.has(namespace))
             throw new EntangldError("You already attach()ed that namespace");
 
         // Attach the store and namespace
-        this._stores.set(namespace, context);
-        this._namespaces.set(context, namespace);
+        this._stores.set(namespace, obj);
+        this._namespaces.set(obj, namespace);
 
         // Create an empty local node so that this attach point is visible
         this._set_local(namespace, {});
@@ -282,45 +279,48 @@ class Entangld {
     }
 
     /**
-     * Detach a namespace / store pair
+     * Detach a namespace / obj pair.
      *
      * If you only pass a namespace or a store, it will find the missing item
-     * before detaching
+     * before detaching.
      *
-     * @param {string} [namespace] the namespace
-     * @param {object} [context] the store context
-     *
-     * @return {boolean} true if the element existed and was removed
-     * @throws {Error} Error will be thrown if you don't pass at least one
-     * parameter
+     * @param {string} [namespace] the namespace.
+     * @param {object} [obj] the store object.
+     * @return {boolean} true if the element existed and was removed.
+     * @throws {EntangldError} Error will be thrown if you don't pass at least
+     * one parameter.
      */
-    detach(namespace, context) {
+    detach(namespace, obj) {
 
-        if (!namespace && !context) {
-            msg = "You must specify at least one store or namespace when "
-                + "calling detach()"
-            throw new Error(msg);
+        if (!namespace && !obj) {
+            const msg = "You must specify at least one of either namespace or "
+                + "object when calling detach()"
+            throw new EntangldError(msg);
         }
 
-        if (!context) context = this._stores.get(namespace);
-        if (!namespace) namespace = this._namespaces.get(context);
+        if (!obj) obj = this._stores.get(namespace);
+        if (!namespace) namespace = this._namespaces.get(obj);
 
         // Detach this namespace placeholder from the local store
         this._set_local(namespace, undefined);
 
-        return this._stores.delete(namespace) && this._namespaces.delete(context);
+        return this._stores.delete(namespace)
+            && this._namespaces.delete(obj);
     }
 
     /**
      * Transmit
      *
      * Specify a callback to be used so we can transmit data to another store.
-     * Callback will be passed (message, context) where 'message' is an
-     * Entangld_Message object and context is the object provided by attach().
+     * Callback will be passed (message, obj) where 'message' is an
+     * Entangld_Message object and obj is the object provided by attach().
      *
      * @param {function} func the callback function.
+     * @throws {TypeError} if func is not a function.
      */
     transmit(func) {
+        if (typeof (func) != "function")
+            throw TypeError("func must be a function")
 
         this._transmit = func;
     }
@@ -332,12 +332,12 @@ class Entangld {
      * callback.
      *
      * @param {Entangld_Message} msg the message to process.
-     * @param {object} context the attach() context where the message originted.
+     * @param {object} obj the attach() object where the message originted.
      *
-     * @throws {ReferenceError} if event context was not provided.
+     * @throws {ReferenceError} if event object was not provided.
      * @throws {EntangldError} if an unknown message type was received.
      */
-    receive(msg, context) {
+    receive(msg, obj) {
 
         if (msg.type == "set") {
             // Remote "set" request
@@ -354,7 +354,7 @@ class Entangld {
                 const response = new Entangld_Message(
                     "value", msg.path, val, msg.uuid);
 
-                this._transmit(response, context);
+                this._transmit(response, obj);
             });
 
         } else if (msg.type == "value") {
@@ -364,11 +364,11 @@ class Entangld {
 
         } else if (msg.type == "event") {
             // Incoming event
-            if (typeof (context) == "undefined")
-                throw new ReferenceError("receive() called without context");
+            if (obj === undefined)
+                throw new ReferenceError("receive() called without object");
 
             // From our perspective the path is now prepended with the namespace
-            let path = this._namespaces.get(context) + "." + msg.path;
+            let path = this._namespaces.get(obj) + "." + msg.path;
 
             // Find and dispatch any subscriptions
             let count = 0;
@@ -388,7 +388,7 @@ class Entangld {
 
                 // Reply with unsubscribe request
                 const response = new Entangld_Message("unsubscribe", msg.path);
-                this._transmit(response, context);
+                this._transmit(response, obj);
             }
 
         } else if (msg.type == "subscribe") {
@@ -397,8 +397,8 @@ class Entangld {
             // Create a new subscription that simply transmits when triggered
             this._subscribe(msg.path.path, (path, val) => {
                 const response = new Entangld_Message("event", path, val);
-                this._transmit(response, context);
-            }, context, msg.path.uuid);
+                this._transmit(response, obj);
+            }, obj, msg.path.uuid);
 
         } else if (msg.type == "unsubscribe") {
             // Incoming remote unsubscribe request
@@ -422,7 +422,8 @@ class Entangld {
      *
      * @param {string} path the path to set (like "system.fan.voltage").
      * @param {object} object the object or function you want to store at path.
-     * @throws {Error}
+     *
+     * @throws {TypeError} if path is not a string.
      */
     push(path, o) {
 
@@ -435,21 +436,21 @@ class Entangld {
      * Set an object into the store
      *
      * @param {string} path the path to set (like "system.fan.voltage").
-     * @param {object} object the object or function you want to store at path.
+     * @param {object} data the object or function you want to store at path.
      * @param {string} [operation_type="set"] whether to set or push the new
      * data (push only works if the data item exists and is an array).
      *
      * @throws {TypeError} if path is not a string.
      */
-    set(path, o, operation_type = "set") {
+    set(path, data, operation_type = "set") {
 
         // Sanity check
         if (typeof (path) != "string")
             throw TypeError("path must be a string");
 
-        let [context, , tree] = this._get_remote_context(path);
+        let [obj, , tree] = this._get_remote_object(path);
 
-        if (context === undefined) {
+        if (obj === undefined) {
             // Set local or remote item
 
             // Is this going to mess with an attached store?
@@ -458,27 +459,27 @@ class Entangld {
                 if (namespace.startsWith(path)) {
 
                     const msg = `Cannot set ${path} - doing so would overwrite `
-                              + `remote store attached at ${path}. Please `
-                              + 'detach first'
+                              + `remote store attached at ${path}. `
+                              + "Please detach first"
                     throw new EntangldError(msg);
                 }
             }
 
-            this._set_local(path, o, operation_type);
+            this._set_local(path, data, operation_type);
 
             // Check subscriptions to see if we need to run an event
             for (let s of this._subscriptions) {
 
                 if (path.startsWith(s.path)) {
 
-                    s.callback(path, o);
+                    s.callback(path, data);
                 }
             }
 
         } else {
 
-            const msg = new Entangld_Message(operation_type, tree, o);
-            this._transmit(msg, context);
+            const msg = new Entangld_Message(operation_type, tree, data);
+            this._transmit(msg, obj);
         }
 
     }
@@ -487,39 +488,40 @@ class Entangld {
     /**
      * Get the remote store in a path
      *
-     * If path contains a remote store, return the context as well as the
+     * If path contains a remote store, return the object as well as the
      * relative path to the remote store
      *
      * Example: let A,B be stores. If A.attach("some.path.to.B", B) then
-     * _get_remote_context("some.path.to.B.data") will return
-     * [B, "some.path.to.B", "data"] and _get_remote_context("nonexistent.path")
+     * _get_remote_object("some.path.to.B.data") will return
+     * [B, "some.path.to.B", "data"] and _get_remote_object("nonexistent.path")
      * will return [undefined, undefined, path]
      *
      * @private
      * @param {string} path the path to investigate.
      *
      * @return {array<object, string, string>} array whose elements are
-     * [context, namespace, relative path below store].  If no store is found,
+     * [obj, namespace, relative path below store].  If no store is found,
      * return value is [undefined, undefined, path].
      */
-    _get_remote_context(path) {
+    _get_remote_object(path) {
 
         // We don't know what part of path might be a store key.  So we need to
         // get all store keys and search (vs .get)
-        for (let [namespace, context] of this._stores) {
+        for (let [namespace, obj] of this._stores) {
 
             if (path.startsWith(namespace)) {
 
                 // Exact match means path is the root of the attached store
                 if (path.length == namespace.length) {
 
-                    return [context, namespace, ""];
+                    return [obj, namespace, ""];
                 }
 
                 // Path is longer than namespace. Make sure we match to a period
                 if (path.substr(namespace.length, 1) == ".") {
 
-                    return [context, namespace, path.substr(namespace.length + 1)];
+                    path = path.substr(namespace.length + 1)
+                    return [obj, namespace, path];
                 }
             }
         }
@@ -548,18 +550,19 @@ class Entangld {
 
         // If an attach()ed store path masks (matches but is shorter than) the
         // path, we are returning that store
-        let [context, , tree] = this._get_remote_context(path);
+        let [obj, , tree] = this._get_remote_object(path);
 
-        // If context is undefined, we are getting a local item
-        if (context === undefined) {
+        // If object is undefined, we are getting a local item
+        if (obj === undefined) {
 
             // Get a reference to the object
-            let [o, remaining_path] = extract_from_path(this._local_data, path);
+            let [data, remaining_path] = extract_from_path(
+                this._local_data, path);
 
             // If it is a function, call it
-            if (typeof (o) == "function") {
+            if (typeof (data) == "function") {
 
-                let result = o(params);
+                let result = data(params);
 
                 // Get a promise resolving to the result
                 let p = (result && result.constructor && result.constructor.name
@@ -570,8 +573,11 @@ class Entangld {
 
                     // If we have a remaining path, try to navigate it before
                     // returning
-                    [o, remaining_path] = extract_from_path(val, remaining_path);
-                    return Promise.resolve((remaining_path === "") ? o : undefined);
+                    [data, remaining_path] = extract_from_path(
+                        val, remaining_path);
+
+                    return Promise.resolve(
+                        (remaining_path === "")? data : undefined);
                 });
             }
 
@@ -581,21 +587,22 @@ class Entangld {
 
                 if (this._deref_mode) {
 
-                    return dereferenced_copy(partial_copy(o, params));
+                    return dereferenced_copy(partial_copy(data, params));
                 } else {
 
-                    return new Promise((res) => res(partial_copy(o, params)));
+                    return new Promise(
+                        (res) => res(partial_copy(data, params)));
                 }
             }
 
             // Default: return a promise resolving to the entire object as-is
             if (this._deref_mode) {
 
-                return dereferenced_copy(o);
+                return dereferenced_copy(data);
 
             } else {
 
-                return new Promise((res) => res(o));
+                return new Promise((res) => res(data));
             }
         }
 
@@ -603,7 +610,7 @@ class Entangld {
         const msg = new Entangld_Message("get", tree, params);
         return new Promise((res) => {
             this._requests[msg.uuid] = res;
-            this._transmit(msg, context);
+            this._transmit(msg, obj);
         });
 
     }
@@ -631,8 +638,8 @@ class Entangld {
      * involved.  It tracks the upstream and downstream, and the uuid of the
      * subscription.  The uuid is the same across all stores for a given
      * subscription.  For a particular store, the upstream is null if it is the
-     * original link in the chain, and the downstream is null if this store owns
-     * the endpoint value.
+     * original link in the chain, and the downstream is null if this store
+     * owns the endpoint value.
      *
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
@@ -669,25 +676,25 @@ class Entangld {
         if (typeof (path) != "string")
             throw TypeError("path must be a string");
 
-        let [context, /*namespace*/, tree] = this._get_remote_context(path);
+        let [obj, /*namespace*/, tree] = this._get_remote_object(path);
 
         // Add to our subscriptions list
         this._subscriptions.push({
-            'path': path,
-            'downstream': context || null,
-            'upstream': upstream,
-            'uuid': uuid,
-            'callback': func
+            "path": path,
+            "downstream": obj || null,
+            "upstream": upstream,
+            "uuid": uuid,
+            "callback": func
         });
 
-        if (context) {
-            // If we have a context, the subscription is to a remote event
+        if (obj) {
+            // If we have an object, the subscription is to a remote event
 
             // Tell the store that we are subscribing.
             const msg = new Entangld_Message(
-                "subscribe", { 'path': tree, 'uuid': uuid });
+                "subscribe", { "path": tree, "uuid": uuid });
 
-            this._transmit(msg, context);
+            this._transmit(msg, obj);
         }
     }
 
@@ -713,12 +720,13 @@ class Entangld {
     /**
      * Unubscribe to change events for a given path.
      *
-     * Caution - all events belonging to you with the given path will be deleted.
+     * Caution - all events belonging to you with the given path will be
+     * deleted.
      *
      * @param {string} path the path to unwatch.
      *
      * @throws {EntangldError} if no subscriptions were found.
-     * @return {number} number of subscriptions removed.
+     * @return {number} count of subscriptions removed.
      */
     unsubscribe(path) {
 
@@ -746,6 +754,8 @@ class Entangld {
      *
      * Remove any subscriptions that are beneath a path.
      *
+     * @param {string} path the tree to unwatch.
+     *
      * @throws {EntangldError} error if there are stores we cannot detach
      * (i.e. they belong to someone else / upstream != null)
      */
@@ -763,8 +773,9 @@ class Entangld {
         if (matching_subscriptions.length != 0) {
 
             const msg = `Unable to completely unsubscribe the tree '${path}' `
-                + 'because some subscriptions are remote or passthrough '
-                + '(we are not the owner, just a downstream)'
+                + "because some subscriptions are remote or passthrough "
+                + "(we are not the owner, just a downstream)"
+
             throw new EntangldError(msg);
         }
     }
@@ -776,29 +787,27 @@ class Entangld {
      * deletes the requested paths and notifies any downstream.
      *
      * @private
-     * @param {array} subscriptions an array of objects containing at minimum
+     * @param {Array} subscriptions an array of objects containing at minimum
      * uuid and upstream keys
      */
     _unsubscribe(subscriptions) {
 
         // Get a list of uuids to remove
         const uuids = []
-        for(let i = 0; i < subscriptions.length; ++i)
-            uuids.push(subscriptions[i].uuid)
+        subscriptions.forEach((sub) => uuids.push(sub.uuid));
 
         // Remove the subscriptions
         this._subscriptions = this._subscriptions.filter(
             (sub) => !(uuids.includes(sub.uuid)));
 
         // Notify the downstream for any deleted subscriptions that are remote
-        for(let i = 0; i < subscriptions.length; ++i) {
-            const sub = subscriptions[i];
-            if(sub.downstream === null)
-                continue
+        subscriptions.forEach((sub) => {
+            if (sub.downstream === null)
+                return
 
             const msg = new Entangld_Message("unsubscribe", { uuid: sub.uuid })
             this._transmit(msg, sub.downstream);
-        }
+        })
     }
 
     /**
@@ -808,27 +817,28 @@ class Entangld {
      *
      * @private
      * @param {string} path the path at which to store the object.
-     * @param {object} object the object to store. If undefined, it unsets path.
-     * @param {string} [operation_type] whether to set or push the new
+     * @param {object} data the object to store. If undefined, it unsets path.
+     * @param {string} [op_type] whether to set or push the new
      * data (push only works if the data item exists and is an array).
      *
-     * @throws {TypeError} if attempting to set root store to a non-object.
+     * @throws {EntangldError} if attempting to set root store to a non-object.
+     * @throws {TypeError} if attempting to push to a non-array.
      */
-    _set_local(path, o, operation_type = "set") {
+    _set_local(path, data, op_type = "set") {
         // Empty path means set everything
         if (path === "") {
-            if(o === undefined)
-                o = {}
+            if(data === undefined)
+                data = {}
 
             // Sanity check
-            if (typeof (o) != "object") {
-                msg = 'You are trying to set the root store to something '
-                    + `(${typeof (o)}) besides an object!`
+            if (typeof (data) != "object") {
+                const msg = "You are trying to set the root store to something "
+                    + `(${typeof (data)}) besides an object!`
 
-                throw TypeError(msg);
+                throw EntangldError(msg);
             }
 
-            this._local_data = o;
+            this._local_data = data;
             return;
         }
 
@@ -843,27 +853,27 @@ class Entangld {
         }
 
         // Handle unset operations
-        if (o === undefined) {
+        if (data === undefined) {
 
             delete (pointer[last]);
             return;
         }
 
-        if (operation_type == "push") {
+        if (op_type == "push") {
 
             if (pointer[last] && typeof (pointer[last].push) == "function") {
 
-                pointer[last].push(o);
+                pointer[last].push(data);
 
             } else {
 
-                throw new Error("You cannot .push() to that object");
+                throw new TypeError("You cannot .push() to that object");
             }
 
         } else {
 
             // Default to set
-            pointer[last] = o;
+            pointer[last] = data;
         }
     }
 }
