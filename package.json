@@ -1,6 +1,6 @@
 {
   "name": "entangld",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
   "jshintConfig": {
@@ -21,13 +21,16 @@
     "url": "https://github.com/DaxBot/entangld"
   },
   "author": "c0d3",
+  "contributors": [
+    "Wilkins White <ww@novadynamics.com>"
+  ],
   "license": "MIT",
   "devDependencies": {
     "fs-then-native": "^2.0.0",
-    "jsdoc-to-markdown": "^3.0.0",
+    "jsdoc-to-markdown": "^6.0.1",
     "jshint": "^2.9.4",
     "jshint-stylish": "^2.2.1",
-    "mocha": "^3.5.3",
+    "mocha": "^8.2.1",
     "nodemon": "^1.11.0"
   },
   "dependencies": {
