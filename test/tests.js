@@ -559,16 +559,25 @@ describe("Multiplexed stores",()=>{
 
 	});
 
-
-	// Add a triple multiplexed store test
-
-
-
+	// TODO: Add a triple multiplexed store test
 });
 
+describe("Subscription", function() {
+	let store;
 
+	beforeEach(function() {
+		store = new Entangld();
+	});
 
+	afterEach(function() {
+		delete store;
+	});
 
+	it("should only trigger subscriptions on an exact match", function() {
+		store.subscribe('test', () => {
+			assert.fail("Function should not be called");
+		});
 
-
-
+		store.set('test2', {});
+	});
+});

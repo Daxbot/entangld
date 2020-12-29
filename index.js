@@ -267,7 +267,7 @@ class Entangld {
 
         // Find and update any subscriptions that fall beneath the new namespace
         const subscriptions = this._subscriptions.filter(
-            (sub) => sub.path.startsWith(namespace))
+            (sub) => this._is_beneath(sub.path, namespace));
 
         // Clean up the old entries
         this._unsubscribe(subscriptions)
@@ -374,7 +374,7 @@ class Entangld {
             let count = 0;
             for (let s of this._subscriptions) {
 
-                if (path.startsWith(s.path)) {
+                if (this._is_beneath(path, s.path)) {
 
                     // Call the callback
                     s.callback(path, msg.value);
@@ -456,7 +456,7 @@ class Entangld {
             // Is this going to mess with an attached store?
             for (let [namespace] of this._stores) {
 
-                if (namespace.startsWith(path)) {
+                if (this._is_beneath(namespace, path)) {
 
                     const msg = `Cannot set ${path} - doing so would overwrite `
                               + `remote store attached at ${path}. `
@@ -470,7 +470,7 @@ class Entangld {
             // Check subscriptions to see if we need to run an event
             for (let s of this._subscriptions) {
 
-                if (path.startsWith(s.path)) {
+                if (this._is_beneath(path, s.path)) {
 
                     s.callback(path, data);
                 }
@@ -509,7 +509,7 @@ class Entangld {
         // get all store keys and search (vs .get)
         for (let [namespace, obj] of this._stores) {
 
-            if (path.startsWith(namespace)) {
+            if (this._is_beneath(path, namespace)) {
 
                 // Exact match means path is the root of the attached store
                 if (path.length == namespace.length) {
@@ -762,13 +762,13 @@ class Entangld {
     unsubscribe_tree(path) {
 
         let matching_subscriptions = this._subscriptions.filter(
-            (sub) => (sub.upstream == null && sub.path.startsWith(path)))
+            (sub) => (sub.upstream == null && this._is_beneath(sub.path, path)))
 
         this._unsubscribe(matching_subscriptions);
 
         // Error on any remaining subscriptions where upstream was not null
         matching_subscriptions = this._subscriptions.filter(
-            (sub) => (sub.path.startsWith(path)))
+            (sub) => this._is_beneath(sub.path, path))
 
         if (matching_subscriptions.length != 0) {
 
@@ -875,6 +875,39 @@ class Entangld {
             // Default to set
             pointer[last] = data;
         }
+    }
+
+    /**
+     * Is beneath
+     *
+     * Is a under b? E.g. is "system.bus.voltage" eqaual to or beneath "system.bus"?
+     *
+     * @private
+     * @param {string} a the string tested for "insideness"
+     * @param {string} b the string tested for "outsideness"
+     * @return boolean
+     */
+    _is_beneath(a, b) {
+
+        // Everything is beneath the top ("")
+        if(b==="") return true;
+
+        // If paths are both blank, they are equal
+        if(b==="" && a==="") return true;
+
+        let A=a.split(".");
+        let B=b.split(".");
+
+        // A is not beneath B if any part is not the same
+        while(A.length && B.length){
+
+            if(A.shift()!=B.shift()) return false;
+        }
+
+        // A is not beneath B if B is longer
+        if(B.length) return false;
+
+        return true;
     }
 }
 
