@@ -5,12 +5,13 @@ const Uuid = require("uuid");
  */
 class Entangld_Message {
 
-    constructor(type, path, value, uuid) {
+    constructor(type, path, value, uuid, params) {
 
         this.type=type;
         this.path=path;
         this.value=value;
         this.uuid=uuid||((type=="get")?Uuid():"");
+        this.params = params;
     }
 }
 
@@ -339,13 +340,9 @@ class Entangld {
      */
     receive(msg, obj) {
 
-        if (msg.type == "set") {
+        if (msg.type == "set" || msg.type == "push") {
             // Remote "set" request
-            this.set(msg.path, msg.value);
-
-        } else if (msg.type == "push") {
-            // Remote "push" request
-            this.push(msg.path, msg.value);
+            this.set(msg.path, msg.value, msg.type, msg.params);
 
         } else if (msg.type == "get") {
             // Remote "get" request
@@ -421,13 +418,15 @@ class Entangld {
      * Convenience method for set(path, o, "push").
      *
      * @param {string} path the path to set (like "system.fan.voltage").
-     * @param {object} object the object or function you want to store at path.
+     * @param {object} data the object or function you want to store at path.
+     * @param {number} [limit] maximum size of the array. Older entries will be
+     * removed until the array size is less than or equal to limit.
      *
      * @throws {TypeError} if path is not a string.
      */
-    push(path, o) {
+    push(path, data, limit=null) {
 
-        this.set(path, o, "push");
+        this.set(path, data, "push", { limit });
 
     }
 
@@ -439,10 +438,11 @@ class Entangld {
      * @param {object} data the object or function you want to store at path.
      * @param {string} [operation_type="set"] whether to set or push the new
      * data (push only works if the data item exists and is an array).
+     * @param {object} [params] additional parameters.
      *
      * @throws {TypeError} if path is not a string.
      */
-    set(path, data, operation_type = "set") {
+    set(path, data, operation_type="set", params={}) {
 
         // Sanity check
         if (typeof (path) != "string")
@@ -465,7 +465,7 @@ class Entangld {
                 }
             }
 
-            this._set_local(path, data, operation_type);
+            this._set_local(path, data, operation_type, params);
 
             // Check subscriptions to see if we need to run an event
             for (let s of this._subscriptions) {
@@ -478,7 +478,9 @@ class Entangld {
 
         } else {
 
-            const msg = new Entangld_Message(operation_type, tree, data);
+            const msg = new Entangld_Message(
+                operation_type, tree, data, null, params);
+
             this._transmit(msg, obj);
         }
 
@@ -820,11 +822,12 @@ class Entangld {
      * @param {object} data the object to store. If undefined, it unsets path.
      * @param {string} [op_type] whether to set or push the new
      * data (push only works if the data item exists and is an array).
+     * @param {object} [params] additional parameters.
      *
      * @throws {EntangldError} if attempting to set root store to a non-object.
      * @throws {TypeError} if attempting to push to a non-array.
      */
-    _set_local(path, data, op_type = "set") {
+    _set_local(path, data, op_type="set", params={}) {
         // Empty path means set everything
         if (path === "") {
             if(data === undefined)
@@ -864,6 +867,10 @@ class Entangld {
             if (pointer[last] && typeof (pointer[last].push) == "function") {
 
                 pointer[last].push(data);
+                if(params.limit) {
+                    while(pointer[last].length > params.limit)
+                        pointer[last].shift(data);
+                }
 
             } else {
 

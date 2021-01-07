@@ -299,6 +299,20 @@ describe("Local storage",()=>{
 			return Promise.resolve();
 		});
 	});
+
+	it("push() limit reduces the size of the target array",()=>{
+		let s=new Entangld();
+		s.set("array", [1, 2, 3, 4]);
+
+		// Push '5' to the array, but limit it to 4 elements
+		s.push("array", 5, 4);
+
+		return s.get("array").then((val) => {
+			// Expected: [2, 3, 4, 5]
+			assert(val.includes(5));
+			assert(val.length == 4);
+		});
+	});
 });
 
 
