@@ -164,4 +164,29 @@ describe("Events",()=>{
 
 		c.set("rubbish.bin","boot");
 	});
+
+
+	it("Upstream event only triggers a single downstream callback when multiple subscriptions co-exist", (done)=>{
+
+		// Subscribe once to a remote endpoint
+		var sub_1_triggers = 0;
+		s.subscribe("a.some_data",(path, val)=>{
+			sub_1_triggers += 1;
+			assert.strictEqual(sub_1_triggers, 1);
+		});
+
+		// Subscribe again to the same remote endpoint
+		var sub_2_triggers = 0;
+		s.subscribe("a.some_data",(path, val)=>{
+			sub_2_triggers += 1;
+			assert.strictEqual(sub_2_triggers, 1);
+		});
+
+		a.set("some_data",0);
+
+		// Let everything clear
+		setTimeout(() => {
+			done();
+		}, 5)
+	});
 });

@@ -371,7 +371,9 @@ class Entangld {
             let count = 0;
             for (let s of this._subscriptions) {
 
-                if (this._is_beneath(path, s.path)) {
+                // Check the message's uuid against the subscriptions to make sure
+                //  only the correct callback is evaluated
+                if (msg.uuid === s.uuid) {
 
                     // Call the callback
                     s.callback(path, msg.value);
@@ -393,7 +395,7 @@ class Entangld {
 
             // Create a new subscription that simply transmits when triggered
             this._subscribe(msg.path.path, (path, val) => {
-                const response = new Entangld_Message("event", path, val);
+                const response = new Entangld_Message("event", path, val, msg.path.uuid); // include uuid to ensure only the correct subscription gets the callback evaluated downstream
                 this._transmit(response, obj);
             }, obj, msg.path.uuid);
 
