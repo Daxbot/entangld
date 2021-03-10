@@ -166,46 +166,4 @@ describe("Events",()=>{
 		c.set("rubbish.bin","boot");
 	});
 
-
-	it("Remote event only triggers a single subscribed callback when multiple subscriptions co-exist", (done)=>{
-
-		// Subscribe once to a remote endpoint
-		var sub_1_triggers = 0;
-		s.subscribe("a.some_data",(path, val)=>{
-			sub_1_triggers += 1;
-			assert.strictEqual(sub_1_triggers, 1);
-		});
-
-		// Subscribe again to the same remote endpoint
-		var sub_2_triggers = 0;
-		s.subscribe("a.some_data",(path, val)=>{
-			sub_2_triggers += 1;
-			assert.strictEqual(sub_2_triggers, 1);
-		});
-
-		a.set("some_data",0);
-
-		done();
-	});
-
-	it("Local sets only triggers a single subscribed callback when multiple subscriptions co-exist", (done)=>{
-
-		// Subscribe once to a local endpoint
-		var sub_1_triggers = 0;
-		s.subscribe("some_data",(path, val)=>{
-			sub_1_triggers += 1;
-			assert.strictEqual(sub_1_triggers, 1);
-		});
-
-		// Subscribe again to the same local endpoint
-		var sub_2_triggers = 0;
-		s.subscribe("some_data",(path, val)=>{
-			sub_2_triggers += 1;
-			assert.strictEqual(sub_2_triggers, 1);
-		});
-
-		s.set("some_data",0);
-
-		done();
-	});
 });
