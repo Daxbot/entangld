@@ -373,7 +373,10 @@ class Entangld {
 
                 // Check the message's uuid against the subscriptions to make sure
                 //  only the correct callback is evaluated
-                if (msg.uuid === s.uuid) {
+                if (
+                  (!msg.uuid && this._is_beneath(path, s.path)) // Old version doesn't have uuid, can only check path :(
+                  || msg.uuid === s.uuid    // new version has uuid, just check that
+                ) {
 
                     // Call the callback
                     s.callback(path, msg.value);
