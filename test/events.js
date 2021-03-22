@@ -15,8 +15,8 @@ describe("Events",()=>{
 	b.attach("parent", s);
 
 	s.transmit((msg, store)=>store.receive(msg, s));
-	a.transmit((msg)=>s.receive(msg, a));
-	b.transmit((msg)=>s.receive(msg, b));
+	a.transmit((msg, store)=>store.receive(msg, a));
+	b.transmit((msg, store)=>store.receive(msg, b));
 
 	it("Subscribe to local event (exact)", (done)=>{
 

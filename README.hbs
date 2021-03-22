@@ -35,8 +35,8 @@ Pairing two data stores together:
 	parent.attach("child",child);
 
 	// Configure communications
-	parent.transmit((msg, store)=>store.receive(msg));	// store === child in this example
-	child.transmit((msg)=>parent.receive(msg, child));
+	parent.transmit((msg, store) => store.receive(msg,parent)); // store will always be child
+	child.transmit((msg, store) => store.receive(msg, child)); // store will always be parent
 
 	// Set something in the child...
 	child.set("system.voltage",33);
@@ -64,7 +64,7 @@ Pub/sub (remote events):
 	parent.subscribe("child.system.voltage",(path, val)=>{
 
 		// path=="child.system.voltage"
-		// val==21 
+		// val==21
 	});
 
 	// Trigger an event
@@ -93,7 +93,7 @@ server
 
 		parent.get("client.my.name")
 			.then((val)=>{
-				
+
 				console.log("Client's name is "+val);
 				server.close();
 			});
@@ -133,8 +133,9 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 
 ## Notes
 
+- As of version 2.0.0, subscriptions all have uuids (which are the same across a chain of subscription objects, in the case of subscriptions to remote datastores), which supports multiple (remote or local) subscriptions to the same endpoint, but with different callback functions. The uuid of a subscription is available in the subscription object (a list of which is exposed from the datastore via `store.owned_subscriptions()`), and is also returned from the method call `store.subscribe("path.to.data")`. Having access to this uuid also allows the user to cancel specific subscriptions. The method call `store.unsubscribe(...)` will now either accept a path or a uuid. For paths, the method will terminate _all_ subscriptions matching that path, while for uuids, only the specific subscription matching that uuid will be canceled.
 - As of version 1.5.0, subscriptions may be created across multiple chained datastores.  Subscription removal now acts on all subscriptions matching (but not beneath) a given path.  To unsubscribe a tree, use ```unsubscribe_tree()```
-- As of version 1.2.0, attached datastores may be located at arbitrary paths, not just in the root: 
+- As of version 1.2.0, attached datastores may be located at arbitrary paths, not just in the root:
 ```parent.attach("child.goes.here", child);```
 - Also as of 1.2.0, attach()ed child stores will appear in the parent as placeholders (empty objects) when .get() is called on paths within the parent.  For example:
 ```
@@ -162,14 +163,12 @@ If these two issues can be resolved at some point, _deref_mode will probably be 
 {{>main}}
 
 ## TODO
-- Make sure incoming values request store doesn't build up 
+- Make sure incoming values request store doesn't build up
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
 - Fix unit tests so they are completely independent (tests often depend on prior test ending with a particular state)
 - Detaching a store does not unsubscribe to any subscriptions from or through that store and may therefore leave things in a dirty or unstable state.  We could unsubscribe_tree(store_name) but that would not take care of passthrough subscriptions (those that don't belong to us)
 - unsubscribe_tree() needs to have a test ensuring errors are thrown if not all subs can be removed
-- Entangld_Message does not have a .payload member or some such, just a .path.  Yet for some subscribe related tasks we need to pass a payload, do we end up with a clumsy .path.path (vs .data.path or .payload.path)
 
 ## License
 MIT
-

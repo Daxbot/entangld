@@ -1,18 +1,147 @@
 const Uuid = require("uuid");
+const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Message class for Entangld.
+ *
+ * These messages are used for executing datastore operations between
+ * remote datastores. In these relationships, there is always an upstream
+ * and downstream pair, so that `get`, `set`, `push` and `subscribe` messages
+ * are created upstream and passed downstream while `event` and `value` messages
+ * are created downstream and are passed back up. `unsubscribe` events can travel
+ * in both directions. To maintain consistency, the internal `.path` attribute
+ * will always refer a path relative to the downstream datastore, since the
+ * downstream datastores do not necessarilly have access to the upstream store
+ * structure, and so cannot generally construct upstream paths. This means that
+ * the `.path` attribute is a `tree` relative to the upstream datastore, and
+ * the upstream path can be reconstructed as:
+ * ```javascript
+ *  > upstream._namespaces.get(downstream) + "." + msg.path;
+ * ```
+ * Since `unsubscribe` messages can pass either upstream or downstream, the notion
+ * of a path is ill-defined, and so unsubscribe messages should have their `.path`
+ * attributes set to undefined or null.
+ *
+ * Most messages will also have a `.uuid` attribute. For `get`/`value` messages,
+ * this allows for the value to be properly linked back up with the original `get`
+ * message. For the `subscribe`/`unsubscribe`/`event` messages, this allows for
+ * callback functions to be trigger properly, and for unsubscribe messages to
+ * propogate both directions. `set`/`push` messages do not use the `.uuid` attribute
+ * since they require no response.
  */
 class Entangld_Message {
 
-    constructor(type, path, value, uuid, params) {
+    constructor({type, path, value, uuid, params}) {
 
-        this.type=type;
-        this.path=path;
-        this.value=value;
-        this.uuid=uuid||((type=="get")?Uuid():"");
+        this.type = type;
+        this.path = path;
+        this.value = value;
+        this.uuid = uuid;
         this.params = params;
     }
+
+    // ----------------------
+    //    Class Methods
+    // ----------------------
+    /**
+     * Create a `get` message for remote datastores
+     *
+     * @param {string} tree - the path relative to the remote datastore
+     * @param {*} [get_params=undefined] - any parameters to be passed to the
+     *                                        remote datastore's local get function
+     * @return {Entangld_Message} - The get message to pass to the remote datastore
+     */
+    static get(tree, get_params) {
+      return new this({
+        type: "get",
+        path : tree, // path needs to be relative to downstream store
+        value : get_params,
+        uuid : Uuid() // Gets generate a new uuid
+      });
+    }
+
+    /**
+     * Create a `value` message in response to a `get` message
+     *
+     * @param {Entangld_Message} get_msg - the `get` message which this is in response to
+     * @param value - the value of the `get`
+     * @return {Entangld_Message} - The `value` message to pass back
+     */
+    static value(get_msg, value) {
+      return new this({
+        type: "value",
+        path : get_msg.path, // Resond with the get's path, which is relative to this store
+        value : value,
+        uuid : get_msg.uuid // Respond with the get's uuid
+      });
+    }
+
+    /**
+     * Create a `set`/`push` message for a remote datastore
+     *
+     * @param {Object} obj - The parameter object for the set/push
+     * @param {string} obj.type - either "set" or "push"
+     * @param {string} obj.tree - the path (relative to the downstream datastore)
+     * @param {*} obj.value - the value to insert into the datastore
+     * @param {*} obj.params - any additional parameters
+     * @return {Entangld_Message} - the "set" or "push" message
+     */
+    static setpush({type = "set", tree, value, params}) {
+      if (!["set", "push"].includes(type)) { throw new Error(`Invalid type (${type}) for setpush`); }
+      return new this({
+        type: type,
+        path : tree,
+        value : value,
+        params : params
+      });
+    }
+
+    /**
+    * Construct subscribe message
+    *
+    * @param {string} tree - the path (relative to the downstream datastore)
+    * @param {Uuid} uuid - the subscription uuid
+    * @return {Entangld_Message} the `subscribe` message
+    */
+    static subscribe(tree, uuid) {
+      return new this({
+        type : "subscribe",
+        path : tree,
+        uuid : uuid
+      });
+    }
+
+    /**
+     * Create an `event` message to return data to subscribe callbacks
+     *
+     * @param {string} path - the path (relative to the downstream store)
+     * @param {*} value - the updated datastore value at the path
+     * @param {Uuid} uuid - the uuid of the subscribe being triggered
+     * @return {Entangld_Message} the `event` message
+     */
+    static event(path, value, uuid) {
+      return new this({
+        type : "event",
+        path : path,
+        value : value,
+        uuid : uuid
+      });
+    }
+
+
+    /**
+     * Create an unsubscribe message for a subscription uuid
+     *
+     * @param {String} uuid - the subscription uuid
+     */
+    static unsubscribe(uuid) {
+      return new this({
+        type: "unsubscribe",
+        // path is ommitted from unsubscribe messages
+        uuid : uuid
+      });
+    }
+
 }
 
 /**
@@ -26,6 +155,110 @@ class EntangldError extends Error {
         Error.captureStackTrace(this, this.constructor);
     }
 }
+
+
+/**
+ * A datastore subscription object
+ */
+class Subscription {
+  /**
+   * Constructor
+   *
+   * @param {Object} obj - the configuration object
+   * @param {string} obj.path - the datastore path (relative to this datastore)
+   *                             of the subscription
+   * @param {Uuid} obj.uuid - the uuid of the subscription chain
+   * @param {function} obj.callback - the callback function, with signature (path, value),
+   *                               where path is relative to this datastore
+   * @param {(Entangld|null)} obj.downstream - the downstream datastore (if any)
+   *                                          associated with this subscription
+   * @param {(Entangld|null)} obj.upstream - the upstream datastore (if any)
+   *                                          associated with this subscription
+   * @return {Subscription} - the subscription object
+   */
+  constructor({path, uuid, callback, downstream, upstream}) {
+    this.path = path;
+    this.downstream = downstream || null;
+    this.upstream = upstream || null;
+    this.uuid = uuid;
+    this.callback = callback;
+  }
+
+  /**
+   * Check if subscription is a `pass through` type
+   *
+   * Pass throughs are as the links in a chain of subscriptions to allows
+   * subscriptions to remote datastores. One store acts as the `head`, where
+   * the callback function is registered, an all others are `path through` datastores
+   * which simply pass event messages back up to the head subscription. Note that
+   * !this.is_pass_through will check if the subscription is the `head` subscription.
+   */
+  get is_pass_through() {
+    return this.upstream !== null;
+  }
+
+  /**
+   * Check if subscription has any downstream subscriptions
+   *
+   * It the subscription refers to a remote datastore (the downstream), this
+   * getter will return a true. Note that !this.has_downstream will check if
+   * the subscription is the `tail` subscription object in a subscription chain.
+   */
+  get has_downstream() {
+    return this.downstream !== null;
+  }
+
+  /**
+   * Check if an `event`/`unsubscribe` message matches this subscription
+   *
+   * @param {Entangld_Message} msg - a received message from a downstream datastore
+   * @return {Boolean} - True if the message is associated with the subscription
+   */
+  matches_message(msg) {
+    return this.matches_uuid(msg.uuid);
+  }
+
+  /**
+   * Check if a provided path matches this path
+   *
+   * @param {String} path - a path string to check against
+   * @return {Boolean} - true if the path matches
+   */
+  matches_path(path) {
+    return this.path === path
+  }
+
+  /**
+   * Check if a provided uuid matches this uuid
+   *
+   * @param {Uuid} uuid - a uuid string to check against
+   * @return {Boolean} - true if the path matches
+   */
+  matches_uuid(uuid) {
+    return this.uuid === uuid
+  }
+
+  /**
+   * Check if subscription path is beneath a provided path
+   *
+   * @param {String} path - a path string to check against
+   * @return {Boolean} - true if the subscription is beneath the path
+   */
+  is_beneath(path) {
+    return is_beneath(this.path, path)
+  }
+
+  /**
+   * Check if subscription path is above a provided path
+   *
+   * @param {String} path - a path string to check against
+   * @return {Boolean} - true if the subscription is beneath the path
+   */
+  is_above(path) {
+    return is_beneath(path, this.path)
+  }
+}
+
 
 /**
  * Deep copy an object
@@ -189,6 +422,38 @@ function partial_copy(o, max_depth) {
 }
 
 /**
+ * Is beneath
+ *
+ * Is `a` under `b`? E.g. is "system.bus.voltage" equal to or beneath "system.bus"?
+ *
+ * @private
+ * @param {string} a the string tested for "insideness"
+ * @param {string} b the string tested for "outsideness"
+ * @return boolean
+ */
+function is_beneath(a, b) {
+
+    // Everything is beneath the top ("")
+    if(b==="") return true;
+
+    // If paths are both blank, they are equal
+    if(b==="" && a==="") return true;
+
+    let A=a.split(".");
+    let B=b.split(".");
+
+    // A is not beneath B if any part is not the same
+    while(A.length && B.length){
+
+        if(A.shift()!=B.shift()) return false;
+    }
+
+    // A is not beneath B if B is longer
+    if(B.length) return false;
+
+    return true;
+}
+/**
  * Synchronized Event Store
  */
 class Entangld {
@@ -219,7 +484,7 @@ class Entangld {
      * Get namespaces
      *
      * @readonly
-     * @return {array} namespaces an array of attached namespaces
+     * @return {array} namespaces - an array of attached namespaces
      */
     get namespaces() {
 
@@ -268,14 +533,15 @@ class Entangld {
 
         // Find and update any subscriptions that fall beneath the new namespace
         const subscriptions = this._subscriptions.filter(
-            (sub) => this._is_beneath(sub.path, namespace));
+            s => s.is_beneath(namespace)
+        );
 
         // Clean up the old entries
         this._unsubscribe(subscriptions)
 
         // Re-subscribe
-        subscriptions.forEach((sub) => {
-            this._subscribe(sub.path, sub.callback, sub.upstream, sub.uuid)
+        subscriptions.forEach(s => {
+            this._subscribe(s.path, s.callback, s.upstream, s.uuid)
         });
     }
 
@@ -348,8 +614,7 @@ class Entangld {
             // Remote "get" request
             this.get(msg.path, msg.value).then((val) => {
 
-                const response = new Entangld_Message(
-                    "value", msg.path, val, msg.uuid);
+                const response = Entangld_Message.value(msg,val)
 
                 this._transmit(response, obj);
             });
@@ -371,12 +636,7 @@ class Entangld {
             let count = 0;
             for (let s of this._subscriptions) {
 
-                // Check the message's uuid against the subscriptions to make sure
-                //  only the correct callback is evaluated
-                if (
-                  (!msg.uuid && this._is_beneath(path, s.path)) // Old version doesn't have uuid, can only check path :(
-                  || msg.uuid === s.uuid    // new version has uuid, just check that
-                ) {
+                if (s.matches_message(msg)) {
 
                     // Call the callback
                     s.callback(path, msg.value);
@@ -384,12 +644,13 @@ class Entangld {
                 }
             }
 
-            // No one is listening.  This may happen if an event triggers while
-            // we are still unsubscribing.
+            // No one is listening. This may happen if an event triggers while
+            // we are still unsubscribing, or if a downstream subscription gets
+            // orphaned
             if (count === 0) {
 
                 // Reply with unsubscribe request
-                const response = new Entangld_Message("unsubscribe", msg.path);
+                const response = Entangld_Message.unsubscribe(msg.uuid);
                 this._transmit(response, obj);
             }
 
@@ -397,17 +658,22 @@ class Entangld {
             // Incoming remote subscription request
 
             // Create a new subscription that simply transmits when triggered
-            this._subscribe(msg.path.path, (path, val) => {
-                const response = new Entangld_Message("event", path, val, msg.path.uuid); // include uuid to ensure only the correct subscription gets the callback evaluated downstream
+            //  the "tree" from the subscribe message is scoped to be a "path"
+            //  here in this datastore
+            this._subscribe(msg.path, (path, val) => {
+                // The "path" here is relative to this datastore, and can
+                //  potentially be beneath msg.params.tree
+                const response = Entangld_Message.event(path,val,msg.uuid);
                 this._transmit(response, obj);
-            }, obj, msg.path.uuid);
+            }, obj, msg.uuid);
 
         } else if (msg.type == "unsubscribe") {
             // Incoming remote unsubscribe request
 
             // Unsubscribe to any matching subscriptions.
-            this._unsubscribe(
-                this._subscriptions.filter((o) => (o.uuid == msg.path.uuid)));
+            this._unsubscribe(this._subscriptions.filter(
+              s => s.matches_message(msg))
+            );
 
         } else {
             // Default
@@ -461,7 +727,7 @@ class Entangld {
             // Is this going to mess with an attached store?
             for (let [namespace] of this._stores) {
 
-                if (this._is_beneath(namespace, path)) {
+                if (is_beneath(namespace, path)) {
 
                     const msg = `Cannot set ${path} - doing so would overwrite `
                               + `remote store attached at ${path}. `
@@ -475,16 +741,22 @@ class Entangld {
             // Check subscriptions to see if we need to run an event
             for (let s of this._subscriptions) {
 
-                if (this._is_beneath(path, s.path)) {
-
-                    s.callback(path, data);
-                }
+                // is this broken? if path="data.element" and s.path="data",
+                //  then the callback will get triggered, but with the sub path,
+                //  i.e. cb("data.element",data), except, the callbacks often
+                //  don't check the path, so it will think it is getting a 'data'
+                //  object, not a "data.path" object . . .
+                if (s.is_above(path)) s.callback(path, data)
             }
 
         } else {
 
-            const msg = new Entangld_Message(
-                operation_type, tree, data, null, params);
+            const msg = Entangld_Message.setpush({
+              type : operation_type,
+              tree : tree,
+              value : data,
+              params : params
+            })
 
             this._transmit(msg, obj);
         }
@@ -516,7 +788,7 @@ class Entangld {
         // get all store keys and search (vs .get)
         for (let [namespace, obj] of this._stores) {
 
-            if (this._is_beneath(path, namespace)) {
+            if (is_beneath(path, namespace)) {
 
                 // Exact match means path is the root of the attached store
                 if (path.length == namespace.length) {
@@ -614,7 +886,8 @@ class Entangld {
         }
 
         // Request the data from the remote store
-        const msg = new Entangld_Message("get", tree, params);
+        const msg = Entangld_Message.get(tree, params);
+
         return new Promise((res) => {
             this._requests[msg.uuid] = res;
             this._transmit(msg, obj);
@@ -630,10 +903,11 @@ class Entangld {
      * Subscriptions to keys within attach()ed stores are remote subscriptions.
      * If several stores are attached in some kind of arrangement, a given key
      * may actually traverse multiple stores!  Since each store only knows its
-     * immediate neighbors - and has no introspection into those neigbors - each
+     * immediate neighbors - and has no introspection into those neighbors - each
      * store is only able to keeps track of the neighbor on each side with
      * respect to a particular path and has no knowledge of the eventual
-     * endpoints.
+     * endpoints.  This means that subscribing across several datstores is accomplished
+     * by daisy-chaining 2-way subscriptions across each datastore interface.
      *
      * For example, let's suppose capital letters represent Entangld stores and
      * lowercase letters are actual objects.  Then  the path "A.B.c.d.E.F.g.h"
@@ -645,18 +919,23 @@ class Entangld {
      * involved.  It tracks the upstream and downstream, and the uuid of the
      * subscription.  The uuid is the same across all stores for a given
      * subscription.  For a particular store, the upstream is null if it is the
-     * original link in the chain, and the downstream is null if this store
-     * owns the endpoint value.
+     * original link in the chain (called the `head`), and the downstream is
+     * null if this store owns the endpoint value (called the `tail`). Any
+     * subscription which is not the head of a chain is called a `pass through`
+     * subscription, because it exist only to pass `event` messages back up the
+     * chain to the head (where the user-provided callback function exists).
+     * subscriptions can be checked to see if they are `pass through` type via
+     * the getter `sub.is_pass_through`.
      *
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
      *
      * @throws {TypeError} if path is not a string.
-     * @return {Promise} promise resolving to the subscription UUID.
+     * @return {Uuid} - the uuid of the subscription
      */
     subscribe(path, func) {
 
-        this._subscribe(path, func);
+        return this._subscribe(path, func);
     }
 
     /**
@@ -668,16 +947,18 @@ class Entangld {
      * @private
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
-     * @param {Entangld} [upstream] the Engangld next upstream in the path.
-     * @param {Uuid} [uuid] the UUID to use for this subscription.
+     * @param {(Entangld|null)} [upstream=null] the Engangld next upstream in the path.
+     * @param {(Uuid|null)} [uuid=null] the UUID to use for this subscription.
      *
      * @throws {TypeError} if path is not a string.
-     * @return {Promise} promise resolving to the subscription UUID.
+     * @return {Uuid} - the uuid of the subscription
      */
     _subscribe(path, func, upstream = null, uuid = null) {
 
+
         // Supply a UUID if none provided
         uuid = uuid || Uuid();
+
 
         // Sanity check
         if (typeof (path) != "string")
@@ -686,23 +967,22 @@ class Entangld {
         let [obj, /*namespace*/, tree] = this._get_remote_object(path);
 
         // Add to our subscriptions list
-        this._subscriptions.push({
-            "path": path,
-            "downstream": obj || null,
-            "upstream": upstream,
-            "uuid": uuid,
-            "callback": func
-        });
+        let new_sub = new Subscription({
+            path : path,
+            downstream : obj,
+            upstream : upstream,
+            uuid : uuid,
+            callback : func
+        })
+        this._subscriptions.push(new_sub);
 
-        if (obj) {
-            // If we have an object, the subscription is to a remote event
-
-            // Tell the store that we are subscribing.
-            const msg = new Entangld_Message(
-                "subscribe", { "path": tree, "uuid": uuid });
-
+        // Commission any subscribes downstream, if this is a remote subscription
+        if (new_sub.has_downstream) {
+            const msg = Entangld_Message.subscribe(tree, uuid);
             this._transmit(msg, obj);
         }
+
+        return new_sub.uuid
     }
 
     /**
@@ -710,50 +990,70 @@ class Entangld {
      *
      * Are we subscribed to a particular remote path?
      *
-     * @param {string} subscription the subscription to check for.
+     * @param {String} subscription the subscription to check for.
      *
-     * @return {boolean} true if we are subscribed.
+     * @return {Boolean} true if we are subscribed.
      */
     subscribed_to(path) {
 
         for (let s of this._subscriptions) {
 
-            if (path == s.path) return true;
+            if (s.matches_path(path)) return true;
         }
 
         return false;
     }
 
     /**
-     * Unubscribe to change events for a given path.
+     * Get all subscriptions currently owned by this datastore
      *
-     * Caution - all events belonging to you with the given path will be
-     * deleted.
+     * @param {string} [path] - the path to search under for subscriptions
      *
-     * @param {string} path the path to unwatch.
+     * @return {Subscription[]} - all subscriptions owned by this datastore
+     */
+    owned_subscriptions(path) {
+        path = path ? path : "";
+        return this._subscriptions.filter(s => s.is_beneath(path))
+    }
+
+    /**
+     * Unubscribe to change events for a given path or uuid.
      *
+     * Caution - if a path is provided, _all_ events belonging to you with that
+     * path will be deleted, so if you have multiple subscriptions on a single path,
+     * and only want one of them to be removed, you must provide the uuid instead.
+     *
+     * @param {(String|Uuid)} path_or_uuid - the path (or uuid) to unwatch.
      * @throws {EntangldError} if no subscriptions were found.
      * @return {number} count of subscriptions removed.
      */
-    unsubscribe(path) {
+    unsubscribe(path_or_uuid) {
 
-        // Find subscriptions that
-        // (1) belongs to us (no upstream),
-        // (2) match the given path.
-        // Passthrough subscriptions (from other stores) are kept safe
-        let matching_subscriptions = this._subscriptions.filter(
-            (s) => (s.path == path && s.upstream === null));
+        let matching_subs = [];
 
-        // Throw an error if none found
-        if (matching_subscriptions.length == 0) {
-
-            throw new EntangldError(
-                `unsubscribe found no subscriptions matching ${path}`);
+        if (path_or_uuid.match(uuid_regex)) {
+          // `path_or_uuid` is a uuid, so find any matching subs with that uuid
+          matching_subs = this._subscriptions.filter(
+            s => s.matches_uuid(path_or_uuid) && !s.is_pass_through
+          );
+        } else {
+          // the arg is a path
+          matching_subs = this._subscriptions.filter(
+            // search for subs which both have the correct path AND are not
+            // pass through, so that pass through subs don't get orphaned
+            s => s.matches_path(path_or_uuid) && !s.is_pass_through
+          );
         }
 
-        this._unsubscribe(matching_subscriptions);
+        // Throw an error if none found
+        if (matching_subs.length == 0) {
 
-        return matching_subscriptions.length;
+            throw new EntangldError(`unsubscribe found no subscriptions matching ${path_or_uuid}`);
+        }
+
+        this._unsubscribe(matching_subs);
+
+        return matching_subs.length;
     }
 
     /**
@@ -769,13 +1069,17 @@ class Entangld {
     unsubscribe_tree(path) {
 
         let matching_subscriptions = this._subscriptions.filter(
-            (sub) => (sub.upstream == null && this._is_beneath(sub.path, path)))
+            // Get all the subs beneath this path, which are not pass throughs,
+            // so that subscriptions don't get orphaned
+            s => s.is_beneath(path) && !s.is_pass_through
+          );
 
         this._unsubscribe(matching_subscriptions);
 
-        // Error on any remaining subscriptions where upstream was not null
+        // Error on any remaining `pass through` subscriptions
         matching_subscriptions = this._subscriptions.filter(
-            (sub) => this._is_beneath(sub.path, path))
+            s => s.is_beneath(path)
+          )
 
         if (matching_subscriptions.length != 0) {
 
@@ -794,27 +1098,26 @@ class Entangld {
      * deletes the requested paths and notifies any downstream.
      *
      * @private
-     * @param {Array} subscriptions an array of objects containing at minimum
+     * @param {Subscription[]} subscriptions an array of objects containing at minimum
      * uuid and upstream keys
      */
     _unsubscribe(subscriptions) {
 
         // Get a list of uuids to remove
-        const uuids = []
-        subscriptions.forEach((sub) => uuids.push(sub.uuid));
+        const uuids = subscriptions.map(s => s.uuid);
 
-        // Remove the subscriptions
+        // Get all the subscriptions which match the provided uuids
         this._subscriptions = this._subscriptions.filter(
-            (sub) => !(uuids.includes(sub.uuid)));
+            s => !(uuids.includes(s.uuid))
+        );
 
         // Notify the downstream for any deleted subscriptions that are remote
-        subscriptions.forEach((sub) => {
-            if (sub.downstream === null)
-                return
+        subscriptions.forEach((s) => {
+            if (!s.has_downstream) return
 
-            const msg = new Entangld_Message("unsubscribe", { uuid: sub.uuid })
-            this._transmit(msg, sub.downstream);
-        })
+            const msg = Entangld_Message.unsubscribe(s.uuid);
+            this._transmit(msg, s.downstream);
+        });
     }
 
     /**
@@ -887,39 +1190,6 @@ class Entangld {
             // Default to set
             pointer[last] = data;
         }
-    }
-
-    /**
-     * Is beneath
-     *
-     * Is a under b? E.g. is "system.bus.voltage" eqaual to or beneath "system.bus"?
-     *
-     * @private
-     * @param {string} a the string tested for "insideness"
-     * @param {string} b the string tested for "outsideness"
-     * @return boolean
-     */
-    _is_beneath(a, b) {
-
-        // Everything is beneath the top ("")
-        if(b==="") return true;
-
-        // If paths are both blank, they are equal
-        if(b==="" && a==="") return true;
-
-        let A=a.split(".");
-        let B=b.split(".");
-
-        // A is not beneath B if any part is not the same
-        while(A.length && B.length){
-
-            if(A.shift()!=B.shift()) return false;
-        }
-
-        // A is not beneath B if B is longer
-        if(B.length) return false;
-
-        return true;
     }
 }
 
