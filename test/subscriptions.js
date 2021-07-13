@@ -143,6 +143,16 @@ describe("Subscription", function() {
         done();
     });
 
+    it("Can get list of subscriptions", (done) => {
+        s.subscribe("num1", () => {});
+        s.subscribe("path1.A.num1", () => {});
+        s.subscribe("path1.A.path3.B.num1", () => {});
+        assert.strictEqual(s.subscriptions.length, 3)
+        assert.strictEqual(a.subscriptions.length, 2)
+        assert.strictEqual(b.subscriptions.length, 1)
+        done();
+    }); 
+
     it("Unsubscribing paths removes all paths", (done)=>{
 
         var count = 0;

@@ -77,55 +77,55 @@ Pub/sub (remote events):
 ```
 Over sockets:
 ```js
-const Sockhop=require("sockhop");
-const Entangld=require("entangld");
+    const Sockhop=require("sockhop");
+    const Entangld=require("entangld");
 
 
-/**
- * Parent / server setup
- */
+    /**
+     * Parent / server setup
+     */
 
-let parent=new Entangld();
-let server=new Sockhop.server();
+    let parent=new Entangld();
+    let server=new Sockhop.server();
 
-// Connect server to parent store
-parent.transmit((msg, store)=>server.send(store, msg));
-server
-    .on("receive",(data, meta)=>parent.receive(data, meta.sock))        // Use the socket as the data store handle
-    .on('connect',(sock)=>{
+    // Connect server to parent store
+    parent.transmit((msg, store)=>server.send(store, msg));
+    server
+        .on("receive",(data, meta)=>parent.receive(data, meta.sock))        // Use the socket as the data store handle
+        .on('connect',(sock)=>{
 
-        parent.attach("client", sock);                    // "client" works for one client.  Normally use uuid() or something
+            parent.attach("client", sock);                    // "client" works for one client.  Normally use uuid() or something
 
-        parent.get("client.my.name")
-            .then((val)=>{
+            parent.get("client.my.name")
+                .then((val)=>{
 
-                console.log("Client's name is "+val);
-                server.close();
-            });
-    })
-    .on('disconnect', (sock)=>parent.detach(null, sock))
-    .on('error', (e)=>console.log("Sockhop error: "+e))
-    .listen();
+                    console.log("Client's name is "+val);
+                    server.close();
+                });
+        })
+        .on('disconnect', (sock)=>parent.detach(null, sock))
+        .on('error', (e)=>console.log("Sockhop error: "+e))
+        .listen();
 
 
-/**
- * Child / client setup
- */
+    /**
+     * Child / client setup
+     */
 
-let child=new Entangld();
-let client=new Sockhop.client();
+    let child=new Entangld();
+    let client=new Sockhop.client();
 
-// Connect client to child store
-child.transmit((msg)=>client.send(msg));
-client
-    .on("receive", (data, meta)=>child.receive(data))
-    .on("connect", ()=>{
-        // attach() to parent is optional, if we plan to get() parent items
-    })
-    .on("error", (e)=>console.log("Sockhop error: "+e))
-    .connect();
+    // Connect client to child store
+    child.transmit((msg)=>client.send(msg));
+    client
+        .on("receive", (data, meta)=>child.receive(data))
+        .on("connect", ()=>{
+            // attach() to parent is optional, if we plan to get() parent items
+        })
+        .on("error", (e)=>console.log("Sockhop error: "+e))
+        .connect();
 
-child.set("my.name", "Entangld");
+    child.set("my.name", "Entangld");
 ```
 
 
@@ -338,13 +338,17 @@ A datastore subscription object
 
 * [Subscription](#Subscription)
     * [new Subscription(obj)](#new_Subscription_new)
-    * [.is_pass_through](#Subscription+is_pass_through)
-    * [.has_downstream](#Subscription+has_downstream)
+    * [.is_pass_through](#Subscription+is_pass_through) ⇒ <code>Boolean</code>
+    * [.is_terminal](#Subscription+is_terminal) ⇒ <code>Boolean</code>
+    * [.is_head](#Subscription+is_head) ⇒ <code>Boolean</code>
+    * [.has_downstream](#Subscription+has_downstream) ⇒ <code>Boolean</code>
+    * [.has_upstream](#Subscription+has_upstream) ⇒ <code>Boolean</code>
     * [.matches_message(msg)](#Subscription+matches_message) ⇒ <code>Boolean</code>
     * [.matches_path(path)](#Subscription+matches_path) ⇒ <code>Boolean</code>
     * [.matches_uuid(uuid)](#Subscription+matches_uuid) ⇒ <code>Boolean</code>
     * [.is_beneath(path)](#Subscription+is_beneath) ⇒ <code>Boolean</code>
     * [.is_above(path)](#Subscription+is_above) ⇒ <code>Boolean</code>
+    * [.static_copy()](#Subscription+static_copy) ⇒ [<code>Subscription</code>](#Subscription)
 
 <a name="new_Subscription_new"></a>
 
@@ -364,24 +368,44 @@ Constructor
 
 <a name="Subscription+is_pass_through"></a>
 
-### subscription.is\_pass\_through
+### subscription.is\_pass\_through ⇒ <code>Boolean</code>
 Check if subscription is a `pass through` type
 
 Pass throughs are as the links in a chain of subscriptions to allows
 subscriptions to remote datastores. One store acts as the `head`, where
 the callback function is registered, an all others are `path through` datastores
-which simply pass event messages back up to the head subscription. Note that
-!this.is_pass_through will check if the subscription is the `head` subscription.
+which simply pass event messages back up to the head subscription.
+
+**Kind**: instance property of [<code>Subscription</code>](#Subscription)  
+<a name="Subscription+is_terminal"></a>
+
+### subscription.is\_terminal ⇒ <code>Boolean</code>
+Check if this subscription will be directly given data by a datastore
+
+**Kind**: instance property of [<code>Subscription</code>](#Subscription)  
+<a name="Subscription+is_head"></a>
+
+### subscription.is\_head ⇒ <code>Boolean</code>
+Check if this subscription will apply a user-supplied callback to data
 
 **Kind**: instance property of [<code>Subscription</code>](#Subscription)  
 <a name="Subscription+has_downstream"></a>
 
-### subscription.has\_downstream
+### subscription.has\_downstream ⇒ <code>Boolean</code>
 Check if subscription has any downstream subscriptions
 
 It the subscription refers to a remote datastore (the downstream), this
 getter will return a true. Note that !this.has_downstream will check if
 the subscription is the `tail` subscription object in a subscription chain.
+
+**Kind**: instance property of [<code>Subscription</code>](#Subscription)  
+<a name="Subscription+has_upstream"></a>
+
+### subscription.has\_upstream ⇒ <code>Boolean</code>
+Check if subscription has any upstream subscriptions
+
+It the subscription passes data back to a remote datastore (the upstream), this
+getter will return a true.
 
 **Kind**: instance property of [<code>Subscription</code>](#Subscription)  
 <a name="Subscription+matches_message"></a>
@@ -444,6 +468,17 @@ Check if subscription path is above a provided path
 | --- | --- | --- |
 | path | <code>String</code> | a path string to check against |
 
+<a name="Subscription+static_copy"></a>
+
+### subscription.static\_copy() ⇒ [<code>Subscription</code>](#Subscription)
+Get a copy of this subscription without external references
+
+This creates a copy, except the upstream/downstream references
+are set to true (if they exist) or null (if they don't. Addtionally,
+the callback function is excluded.
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
+**Returns**: [<code>Subscription</code>](#Subscription) - a copy of this subscription object  
 <a name="Entangld"></a>
 
 ## Entangld ⇐ <code>EventEmitter</code>
@@ -454,6 +489,7 @@ Synchronized Event Store
 
 * [Entangld](#Entangld) ⇐ <code>EventEmitter</code>
     * [.namespaces](#Entangld+namespaces) ⇒ <code>array</code>
+    * [.subscriptions](#Entangld+subscriptions) ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
     * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
     * [.attach(namespace, obj)](#Entangld+attach)
     * [.detach([namespace], [obj])](#Entangld+detach) ⇒ <code>boolean</code>
@@ -464,7 +500,6 @@ Synchronized Event Store
     * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, func)](#Entangld+subscribe) ⇒ <code>Uuid</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
-    * [.owned_subscriptions([path])](#Entangld+owned_subscriptions) ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
     * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
     * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
 
@@ -475,6 +510,17 @@ Get namespaces
 
 **Kind**: instance property of [<code>Entangld</code>](#Entangld)  
 **Returns**: <code>array</code> - namespaces - an array of attached namespaces  
+**Read only**: true  
+<a name="Entangld+subscriptions"></a>
+
+### entangld.subscriptions ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
+Get list of subscriptions associated with this object
+
+Note, this will include `head`, `terminal` and `pass through` subscriptions,
+which can be checked using getter methods of the subscription object.
+
+**Kind**: instance property of [<code>Entangld</code>](#Entangld)  
+**Returns**: [<code>Array.&lt;Subscription&gt;</code>](#Subscription) - array of Subscriptions associated with this object  
 **Read only**: true  
 <a name="Entangld+namespace"></a>
 
@@ -677,18 +723,6 @@ Are we subscribed to a particular remote path?
 | Param | Type | Description |
 | --- | --- | --- |
 | subscription | <code>String</code> | the subscription to check for. |
-
-<a name="Entangld+owned_subscriptions"></a>
-
-### entangld.owned\_subscriptions([path]) ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
-Get all subscriptions currently owned by this datastore
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: [<code>Array.&lt;Subscription&gt;</code>](#Subscription) - - all subscriptions owned by this datastore  
-
-| Param | Type | Description |
-| --- | --- | --- |
-| [path] | <code>string</code> | the path to search under for subscriptions |
 
 <a name="Entangld+unsubscribe"></a>
 
