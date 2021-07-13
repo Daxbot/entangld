@@ -32,13 +32,14 @@ const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 class Entangld_Message {
 
-    constructor({type, path, value, uuid, params}) {
+    constructor({type, path, value, uuid, params, every}) {
 
         this.type = type;
         this.path = path;
         this.value = value;
         this.uuid = uuid;
         this.params = params;
+        this.every = every;
     }
 
     // ----------------------
@@ -104,11 +105,12 @@ class Entangld_Message {
     * @param {Uuid} uuid - the subscription uuid
     * @return {Entangld_Message} the `subscribe` message
     */
-    static subscribe(tree, uuid) {
+    static subscribe(tree, uuid, every = null) {
       return new this({
         type : "subscribe",
         path : tree,
-        uuid : uuid
+        uuid : uuid,
+        every : every
       });
     }
 
@@ -175,14 +177,46 @@ class Subscription {
      *                                          associated with this subscription
      * @param {(Entangld|null)} obj.upstream - the upstream datastore (if any)
      *                                          associated with this subscription
+     * @param {(number|null)} obj.every - how many `set` messages to wait before calling callback
      * @return {Subscription} - the subscription object
      */
-    constructor({path, uuid, callback, downstream, upstream}) {
+    constructor({path, uuid, callback, downstream, upstream, every}) {
         this.path = path;
         this.downstream = downstream || null;
         this.upstream = upstream || null;
         this.uuid = uuid;
         this.callback = callback;
+        this._has_cb = (typeof(callback) === "function");
+        this._is_counting = (this.downstream === null);
+        every = parseInt(every);
+        if ( isNaN(every) || every < 1 ) {
+            this.every = 1;
+        } else {
+            this.every = every;
+        }
+        this.index = -1; // guarentee that the first `set` triggers
+    }
+
+    /**
+     * Apply this callback function
+     *
+     * Note, this method also tracks the number of times that a callback
+     * function is called (if this subscription is terminal), so that if
+     * the subscriptions are throttled by specifying an `this.every`,
+     * this method will only call the callback function every `this.every`
+     * times it receives a `set` message. If this subscription is not
+     * terminal, then the callback function is called every time.
+     *
+     * This method also is safed when a callback function is not give (i.e.
+     * by the `this.static_copy()` method).
+     */
+    call(...args) {
+        if ( !this._has_cb ) return;
+        if ( this._is_counting ) {
+            this.index = (this.index + 1) % this.every;
+            if ( this.index !== 0 ) return;
+        }
+        this.callback(...args);
     }
 
     /**
@@ -307,7 +341,8 @@ class Subscription {
             path : this.path,
             uuid : this.uuid, 
             downstream : (this.downstream === null ? null : true), 
-            upstream : (this.upstream === null ? null : true)
+            upstream : (this.upstream === null ? null : true),
+            every : this.every
         })
     }
 }
@@ -610,7 +645,7 @@ class Entangld extends EventEmitter {
 
         // Re-subscribe
         subscriptions.forEach(s => {
-            this._subscribe(s.path, s.callback, s.upstream, s.uuid)
+            this._subscribe(s.path, s.callback, s.upstream, s.uuid, s.every);
         });
     }
 
@@ -708,7 +743,7 @@ class Entangld extends EventEmitter {
                 if (s.matches_message(msg)) {
 
                     // Call the callback
-                    s.callback(path, msg.value);
+                    s.call(path, msg.value);
                     count++;
                 }
             }
@@ -734,7 +769,7 @@ class Entangld extends EventEmitter {
                 //  potentially be beneath msg.params.tree
                 const response = Entangld_Message.event(path,val,msg.uuid);
                 this._transmit(response, obj);
-            }, obj, msg.uuid);
+            }, obj, msg.uuid, msg.every);
 
         } else if (msg.type == "unsubscribe") {
             // Incoming remote unsubscribe request
@@ -815,7 +850,7 @@ class Entangld extends EventEmitter {
                 //  i.e. cb("data.element",data), except, the callbacks often
                 //  don't check the path, so it will think it is getting a 'data'
                 //  object, not a "data.path" object . . .
-                if (s.is_above(path)) s.callback(path, data)
+                if (s.is_above(path)) s.call(path, data)
             }
 
         } else {
@@ -998,13 +1033,14 @@ class Entangld extends EventEmitter {
      *
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
+     * @param {number|null} [every=null] the number of `set` messages to wait before calling callback
      *
      * @throws {TypeError} if path is not a string.
      * @return {Uuid} - the uuid of the subscription
      */
-    subscribe(path, func) {
+    subscribe(path, func, every = null) {
 
-        return this._subscribe(path, func);
+        return this._subscribe(path, func, null, null, every);
     }
 
     /**
@@ -1025,7 +1061,7 @@ class Entangld extends EventEmitter {
      * @throws {TypeError} if path is not a string.
      * @return {Uuid} - the uuid of the subscription
      */
-    _subscribe(path, func, upstream = null, uuid = null) {
+    _subscribe(path, func, upstream = null, uuid = null, every = null) {
 
 
         // Supply a UUID if none provided
@@ -1044,13 +1080,14 @@ class Entangld extends EventEmitter {
             downstream : obj,
             upstream : upstream,
             uuid : uuid,
-            callback : func
+            callback : func,
+            every : every
         })
         this._subscriptions.push(new_sub);
 
         // Commission any subscribes downstream, if this is a remote subscription
         if (new_sub.has_downstream) {
-            const msg = Entangld_Message.subscribe(tree, uuid);
+            const msg = Entangld_Message.subscribe(tree, uuid, every);
             this._transmit(msg, obj);
 
         } else { // this is the terminal datastore, so emit subscription received

@@ -74,6 +74,16 @@ Pub/sub (remote events):
     // Listen on the child for when the parent subscribes
     child.on("subscription", ( path, uuid ) => console.log("Parent subscribed to :" + path));
     parent.subscribe("child.system.voltage"); // Child prints: "Parent subscribed to : system.voltage"
+
+    // Throttle the subscription callbacks, so that the callback is only called every 2 sets
+    let counter = 0;
+    parent.subscribe("child.rapid.data", () => counter += 1, 2);
+    child.set("rapid.data", 1) // triggers callback
+    child.set("rapid.data", 1) // doesn't trigger callback
+    child.set("rapid.data", 1) // triggers callback
+    child.set("rapid.data", 1) // doesn't trigger callback
+    console.log( counter ); // === 2
+
 ```
 Over sockets:
 ```js
@@ -343,6 +353,7 @@ A datastore subscription object
     * [.is_head](#Subscription+is_head) ⇒ <code>Boolean</code>
     * [.has_downstream](#Subscription+has_downstream) ⇒ <code>Boolean</code>
     * [.has_upstream](#Subscription+has_upstream) ⇒ <code>Boolean</code>
+    * [.call()](#Subscription+call)
     * [.matches_message(msg)](#Subscription+matches_message) ⇒ <code>Boolean</code>
     * [.matches_path(path)](#Subscription+matches_path) ⇒ <code>Boolean</code>
     * [.matches_uuid(uuid)](#Subscription+matches_uuid) ⇒ <code>Boolean</code>
@@ -365,6 +376,7 @@ Constructor
 | obj.callback | <code>function</code> | the callback function, with signature (path, value),                               where path is relative to this datastore |
 | obj.downstream | [<code>Entangld</code>](#Entangld) \| <code>null</code> | the downstream datastore (if any)                                          associated with this subscription |
 | obj.upstream | [<code>Entangld</code>](#Entangld) \| <code>null</code> | the upstream datastore (if any)                                          associated with this subscription |
+| obj.every | <code>number</code> \| <code>null</code> | how many `set` messages to wait before calling callback |
 
 <a name="Subscription+is_pass_through"></a>
 
@@ -408,6 +420,22 @@ It the subscription passes data back to a remote datastore (the upstream), this
 getter will return a true.
 
 **Kind**: instance property of [<code>Subscription</code>](#Subscription)  
+<a name="Subscription+call"></a>
+
+### subscription.call()
+Apply this callback function
+
+Note, this method also tracks the number of times that a callback
+function is called (if this subscription is terminal), so that if
+the subscriptions are throttled by specifying an `this.every`,
+this method will only call the callback function every `this.every`
+times it receives a `set` message. If this subscription is not
+terminal, then the callback function is called every time.
+
+This method also is safed when a callback function is not give (i.e.
+by the `this.static_copy()` method).
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
 <a name="Subscription+matches_message"></a>
 
 ### subscription.matches\_message(msg) ⇒ <code>Boolean</code>
@@ -498,7 +526,7 @@ Synchronized Event Store
     * [.push(path, data, [limit])](#Entangld+push)
     * [.set(path, data, [operation_type], [params])](#Entangld+set)
     * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
-    * [.subscribe(path, func)](#Entangld+subscribe) ⇒ <code>Uuid</code>
+    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>Uuid</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
     * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
     * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
@@ -666,7 +694,7 @@ recursion and may be expensive.
 
 <a name="Entangld+subscribe"></a>
 
-### entangld.subscribe(path, func) ⇒ <code>Uuid</code>
+### entangld.subscribe(path, func, [every]) ⇒ <code>Uuid</code>
 Subscribe to change events for a path
 
 If objects at or below this path change, you will get a callback
@@ -705,10 +733,11 @@ the getter `sub.is_pass_through`.
 - <code>TypeError</code> if path is not a string.
 
 
-| Param | Type | Description |
-| --- | --- | --- |
-| path | <code>string</code> | the path to watch. |
-| func | <code>function</code> | the callback - will be of the form (path, value). |
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to watch. |
+| func | <code>function</code> |  | the callback - will be of the form (path, value). |
+| [every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
 
 <a name="Entangld+subscribed_to"></a>
 

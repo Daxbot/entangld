@@ -74,6 +74,16 @@ Pub/sub (remote events):
     // Listen on the child for when the parent subscribes
     child.on("subscription", ( path, uuid ) => console.log("Parent subscribed to :" + path));
     parent.subscribe("child.system.voltage"); // Child prints: "Parent subscribed to : system.voltage"
+
+    // Throttle the subscription callbacks, so that the callback is only called every 2 sets
+    let counter = 0;
+    parent.subscribe("child.rapid.data", () => counter += 1, 2);
+    child.set("rapid.data", 1) // triggers callback
+    child.set("rapid.data", 1) // doesn't trigger callback
+    child.set("rapid.data", 1) // triggers callback
+    child.set("rapid.data", 1) // doesn't trigger callback
+    console.log( counter ); // === 2
+
 ```
 Over sockets:
 ```js

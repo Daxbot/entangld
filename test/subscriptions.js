@@ -114,6 +114,49 @@ describe("Subscription", function() {
         done();
     });
 
+    it("Can have parallel subscriptions (locallly)", function(done) {
+
+        var count = 0;
+        // Create two subscriptions
+        s.subscribe("some_data", () => {count += 1});
+        s.subscribe("some_data", () => {count += 1});
+
+        s.set('some_data', 0.0);
+
+        assert.strictEqual(count, 2);
+
+        done();
+    });
+
+    it("Can (not) throttle subscription messages (locally)", (done) => {
+        var count = 0;
+        s.subscribe("some_data", (path, value) => { count += 1 }, 1)
+        for ( let i = 0; i < 10; i ++ ) {
+            s.set("some_data", 1);
+        }
+        assert.strictEqual(count, 10);
+        done();
+    });
+
+    it("Can throttle subscription messages (locally)", (done) => {
+        var count = 0;
+        s.subscribe("some_data", (path, value) => { count += 1 }, 2)
+        for ( let i = 0; i < 10; i ++ ) {
+            s.set("some_data", 1);
+        }
+        assert.strictEqual(count, 5);
+        done();
+    });
+
+    it("Can throttle subscription messages (remote)", (done) => {
+        var count = 0;
+        s.subscribe("path1.A.path3.B.some_data", (path, value) => { count += 1 }, 2)
+        for ( let i = 0; i < 10; i ++ ) {
+            b.set("some_data", 1);
+        }
+        assert.strictEqual(count, 5);
+        done();
+    });
 
     it("Can have parallel subscriptions (locallly)", function(done) {
 
