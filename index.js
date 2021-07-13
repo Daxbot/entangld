@@ -1,4 +1,5 @@
 const Uuid = require("uuid");
+const EventEmitter = require("events");
 const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -455,10 +456,13 @@ function is_beneath(a, b) {
 }
 /**
  * Synchronized Event Store
+ *
+ * @extends EventEmitter
  */
-class Entangld {
+class Entangld extends EventEmitter {
 
     constructor() {
+        super();
 
         this._stores = new Map();
         this._namespaces = new Map();
@@ -949,7 +953,10 @@ class Entangld {
      * @param {function} func the callback - will be of the form (path, value).
      * @param {(Entangld|null)} [upstream=null] the Engangld next upstream in the path.
      * @param {(Uuid|null)} [uuid=null] the UUID to use for this subscription.
-     *
+     *  
+     * @emits {str} subscription - when this datastore is the terminal datastore of a
+     *                             subscription request, this datastore emits the path
+     *                             and uuid.
      * @throws {TypeError} if path is not a string.
      * @return {Uuid} - the uuid of the subscription
      */
@@ -980,6 +987,9 @@ class Entangld {
         if (new_sub.has_downstream) {
             const msg = Entangld_Message.subscribe(tree, uuid);
             this._transmit(msg, obj);
+
+        } else { // this is the terminal datastore, so emit subscription received
+            this.emit("subscription", path, uuid) 
         }
 
         return new_sub.uuid
@@ -1113,10 +1123,12 @@ class Entangld {
 
         // Notify the downstream for any deleted subscriptions that are remote
         subscriptions.forEach((s) => {
-            if (!s.has_downstream) return
-
-            const msg = Entangld_Message.unsubscribe(s.uuid);
-            this._transmit(msg, s.downstream);
+            if (!s.has_downstream) { // emit unsubscription
+                this.emit("unsubscription", s.path, s.uuid);
+            } else { // Notify downstreams
+                const msg = Entangld_Message.unsubscribe(s.uuid);
+                this._transmit(msg, s.downstream);
+            }
         });
     }
 

@@ -5,70 +5,75 @@ Synchronized key-value stores with RPCs and pub/sub events.  Works over sockets 
 ## Examples
 Basic use:
 ```js
-	let e=new Entangld();
+    let e=new Entangld();
 
-	// Simple set/get
-	e.set("number.six",6);
-	e.get("number.six").then((val)=>{}); 	// val==6
+    // Simple set/get
+    e.set("number.six",6);
+    e.get("number.six").then((val)=>{});     // val==6
 
-	// Functions as values
-	e._deref_mode=true;
-	e.set("number.seven",()=>{ return 7;});
-	e.get("number").then((val)=>{}); 		// val => { six:6, seven, 7}
+    // Functions as values
+    e._deref_mode=true;
+    e.set("number.seven",()=>{ return 7;});
+    e.get("number").then((val)=>{});         // val => { six:6, seven, 7}
 
-	// Promises from functions
-	e.set("number.eight",()=>{ return new Promise((resolve)=>{ resolve(8); }); });
-	e.get("number.eight").then((val)=>{}); 	// val==8
+    // Promises from functions
+    e.set("number.eight",()=>{ return new Promise((resolve)=>{ resolve(8); }); });
+    e.get("number.eight").then((val)=>{});     // val==8
 
-	// Even dereference beneath functions
-	e.set("eenie.meenie",()=>{ return {"miney": "moe"}; });
-	e.get("eenie.meenie.miney").then((val)=>{});	// val=="moe"
-
+    // Even dereference beneath functions
+    e.set("eenie.meenie",()=>{ return {"miney": "moe"}; });
+    e.get("eenie.meenie.miney").then((val)=>{});    // val=="moe"
+    
 ```
 
 Pairing two data stores together:
 ```js
-	let parent=new Entangld();
-	let child=new Entangld();
+    let parent=new Entangld();
+    let child=new Entangld();
 
-	// Attach child namespace
-	parent.attach("child",child);
+    // Attach child namespace
+    parent.attach("child",child);
 
-	// Configure communications
-	parent.transmit((msg, store) => store.receive(msg,parent)); // store will always be child
-	child.transmit((msg, store) => store.receive(msg, child)); // store will always be parent
+    // Configure communications
+    parent.transmit((msg, store) => store.receive(msg,parent)); // store will always be child
+    child.transmit((msg, store) => store.receive(msg, child)); // store will always be parent
 
-	// Set something in the child...
-	child.set("system.voltage",33);
+    // Set something in the child...
+    child.set("system.voltage",33);
 
-	// Get it back in the parent
-	parent.get("child.system.voltage");		// == 33
+    // Get it back in the parent
+    parent.get("child.system.voltage");        // == 33
 ```
 Using getter functions as RPC:
 ```js
-	// Assign a function to a child key
-	child.set("double.me",(param=0)=>param*2);	// Or we could return a Promise instead of a value, if we wanted to!
+    // Assign a function to a child key
+    child.set("double.me",(param=0)=>param*2);    // Or we could return a Promise instead of a value, if we wanted to!
 
-	// Call the RPC from the parent
-	parent.get("child.double.me", 2).then((val)=>{
+    // Call the RPC from the parent
+    parent.get("child.double.me", 2).then((val)=>{
 
-		// val == 4
-	});
+        // val == 4
+    });
 
 ```
 Note in this example how we set a default value for this getter function (0).  This is because when _deref_mode is ```true``` this getter will be called without any arguments.
 
 Pub/sub (remote events):
 ```js
-	// Assign an event callback
-	parent.subscribe("child.system.voltage",(path, val)=>{
+    // Assign an event callback
+    parent.subscribe("child.system.voltage",(path, val)=>{
 
-		// path=="child.system.voltage"
-		// val==21
-	});
+        // path=="child.system.voltage"
+        // val==21
+    });
 
-	// Trigger an event
-	child.set("system.voltage",21);
+    // Trigger a callback on the parent
+    child.set("system.voltage",21);
+
+
+    // Listen on the child for when the parent subscribes
+    child.on("subscription", ( path, uuid ) => console.log("Parent subscribed to :" + path));
+    parent.subscribe("child.system.voltage"); // Child prints: "Parent subscribed to : system.voltage"
 ```
 Over sockets:
 ```js
@@ -86,21 +91,21 @@ let server=new Sockhop.server();
 // Connect server to parent store
 parent.transmit((msg, store)=>server.send(store, msg));
 server
-	.on("receive",(data, meta)=>parent.receive(data, meta.sock))		// Use the socket as the data store handle
-	.on('connect',(sock)=>{
+    .on("receive",(data, meta)=>parent.receive(data, meta.sock))        // Use the socket as the data store handle
+    .on('connect',(sock)=>{
 
-		parent.attach("client", sock);					// "client" works for one client.  Normally use uuid() or something
+        parent.attach("client", sock);                    // "client" works for one client.  Normally use uuid() or something
 
-		parent.get("client.my.name")
-			.then((val)=>{
+        parent.get("client.my.name")
+            .then((val)=>{
 
-				console.log("Client's name is "+val);
-				server.close();
-			});
-	})
-	.on('disconnect', (sock)=>parent.detach(null, sock))
+                console.log("Client's name is "+val);
+                server.close();
+            });
+    })
+    .on('disconnect', (sock)=>parent.detach(null, sock))
     .on('error', (e)=>console.log("Sockhop error: "+e))
-	.listen();
+    .listen();
 
 
 /**
@@ -113,12 +118,12 @@ let client=new Sockhop.client();
 // Connect client to child store
 child.transmit((msg)=>client.send(msg));
 client
-	.on("receive", (data, meta)=>child.receive(data))
-	.on("connect", ()=>{
-		// attach() to parent is optional, if we plan to get() parent items
-	})
-	.on("error", (e)=>console.log("Sockhop error: "+e))
-	.connect();
+    .on("receive", (data, meta)=>child.receive(data))
+    .on("connect", ()=>{
+        // attach() to parent is optional, if we plan to get() parent items
+    })
+    .on("error", (e)=>console.log("Sockhop error: "+e))
+    .connect();
 
 child.set("my.name", "Entangld");
 ```
@@ -143,7 +148,7 @@ child.set("",{"child" : "data" });
 parent.set("",{"parent" : "data"});
 parent.attach("child", child);
 
-parent.get(""); 	// Returns { "parent" : "data", "child" : {} }
+parent.get("");     // Returns { "parent" : "data", "child" : {} }
 parent.get("child"); // Returns {"child" : "data"}
 ```
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
@@ -193,7 +198,7 @@ since they require no response.</p>
 <dt><a href="#Subscription">Subscription</a></dt>
 <dd><p>A datastore subscription object</p>
 </dd>
-<dt><a href="#Entangld">Entangld</a></dt>
+<dt><a href="#Entangld">Entangld</a> ⇐ <code>EventEmitter</code></dt>
 <dd><p>Synchronized Event Store</p>
 </dd>
 </dl>
@@ -441,12 +446,13 @@ Check if subscription path is above a provided path
 
 <a name="Entangld"></a>
 
-## Entangld
+## Entangld ⇐ <code>EventEmitter</code>
 Synchronized Event Store
 
 **Kind**: global class  
+**Extends**: <code>EventEmitter</code>  
 
-* [Entangld](#Entangld)
+* [Entangld](#Entangld) ⇐ <code>EventEmitter</code>
     * [.namespaces](#Entangld+namespaces) ⇒ <code>array</code>
     * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
     * [.attach(namespace, obj)](#Entangld+attach)
