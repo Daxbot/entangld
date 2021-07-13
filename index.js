@@ -1,4 +1,5 @@
 const Uuid = require("uuid");
+const EventEmitter = require("events");
 const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -31,13 +32,14 @@ const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 class Entangld_Message {
 
-    constructor({type, path, value, uuid, params}) {
+    constructor({type, path, value, uuid, params, every}) {
 
         this.type = type;
         this.path = path;
         this.value = value;
         this.uuid = uuid;
         this.params = params;
+        this.every = every;
     }
 
     // ----------------------
@@ -103,11 +105,12 @@ class Entangld_Message {
     * @param {Uuid} uuid - the subscription uuid
     * @return {Entangld_Message} the `subscribe` message
     */
-    static subscribe(tree, uuid) {
+    static subscribe(tree, uuid, every = null) {
       return new this({
         type : "subscribe",
         path : tree,
-        uuid : uuid
+        uuid : uuid,
+        every : every
       });
     }
 
@@ -161,102 +164,187 @@ class EntangldError extends Error {
  * A datastore subscription object
  */
 class Subscription {
-  /**
-   * Constructor
-   *
-   * @param {Object} obj - the configuration object
-   * @param {string} obj.path - the datastore path (relative to this datastore)
-   *                             of the subscription
-   * @param {Uuid} obj.uuid - the uuid of the subscription chain
-   * @param {function} obj.callback - the callback function, with signature (path, value),
-   *                               where path is relative to this datastore
-   * @param {(Entangld|null)} obj.downstream - the downstream datastore (if any)
-   *                                          associated with this subscription
-   * @param {(Entangld|null)} obj.upstream - the upstream datastore (if any)
-   *                                          associated with this subscription
-   * @return {Subscription} - the subscription object
-   */
-  constructor({path, uuid, callback, downstream, upstream}) {
-    this.path = path;
-    this.downstream = downstream || null;
-    this.upstream = upstream || null;
-    this.uuid = uuid;
-    this.callback = callback;
-  }
+    /**
+     * Constructor
+     *
+     * @param {Object} obj - the configuration object
+     * @param {string} obj.path - the datastore path (relative to this datastore)
+     *                             of the subscription
+     * @param {Uuid} obj.uuid - the uuid of the subscription chain
+     * @param {function} obj.callback - the callback function, with signature (path, value),
+     *                               where path is relative to this datastore
+     * @param {(Entangld|null)} obj.downstream - the downstream datastore (if any)
+     *                                          associated with this subscription
+     * @param {(Entangld|null)} obj.upstream - the upstream datastore (if any)
+     *                                          associated with this subscription
+     * @param {(number|null)} obj.every - how many `set` messages to wait before calling callback
+     * @return {Subscription} - the subscription object
+     */
+    constructor({path, uuid, callback, downstream, upstream, every}) {
+        this.path = path;
+        this.downstream = downstream || null;
+        this.upstream = upstream || null;
+        this.uuid = uuid;
+        this.callback = callback;
+        this._has_cb = (typeof(callback) === "function");
+        this._is_counting = (this.downstream === null);
+        every = parseInt(every);
+        if ( isNaN(every) || every < 1 ) {
+            this.every = 1;
+        } else {
+            this.every = every;
+        }
+        this.index = -1; // guarentee that the first `set` triggers
+    }
 
-  /**
-   * Check if subscription is a `pass through` type
-   *
-   * Pass throughs are as the links in a chain of subscriptions to allows
-   * subscriptions to remote datastores. One store acts as the `head`, where
-   * the callback function is registered, an all others are `path through` datastores
-   * which simply pass event messages back up to the head subscription. Note that
-   * !this.is_pass_through will check if the subscription is the `head` subscription.
-   */
-  get is_pass_through() {
-    return this.upstream !== null;
-  }
+    /**
+     * Apply this callback function
+     *
+     * Note, this method also tracks the number of times that a callback
+     * function is called (if this subscription is terminal), so that if
+     * the subscriptions are throttled by specifying an `this.every`,
+     * this method will only call the callback function every `this.every`
+     * times it receives a `set` message. If this subscription is not
+     * terminal, then the callback function is called every time.
+     *
+     * This method also is safed when a callback function is not give (i.e.
+     * by the `this.static_copy()` method).
+     */
+    call(...args) {
+        if ( !this._has_cb ) return;
+        if ( this._is_counting ) {
+            this.index = (this.index + 1) % this.every;
+            if ( this.index !== 0 ) return;
+        }
+        this.callback(...args);
+    }
 
-  /**
-   * Check if subscription has any downstream subscriptions
-   *
-   * It the subscription refers to a remote datastore (the downstream), this
-   * getter will return a true. Note that !this.has_downstream will check if
-   * the subscription is the `tail` subscription object in a subscription chain.
-   */
-  get has_downstream() {
-    return this.downstream !== null;
-  }
+    /**
+     * Check if subscription is a `pass through` type
+     *
+     * Pass throughs are as the links in a chain of subscriptions to allows
+     * subscriptions to remote datastores. One store acts as the `head`, where
+     * the callback function is registered, an all others are `path through` datastores
+     * which simply pass event messages back up to the head subscription.
+     *
+     * @return {Boolean}
+     */
+    get is_pass_through() {
+        return this.has_upstream
+    }
 
-  /**
-   * Check if an `event`/`unsubscribe` message matches this subscription
-   *
-   * @param {Entangld_Message} msg - a received message from a downstream datastore
-   * @return {Boolean} - True if the message is associated with the subscription
-   */
-  matches_message(msg) {
-    return this.matches_uuid(msg.uuid);
-  }
+    /**
+     * Check if this subscription will be directly given data by a datastore
+     *
+     * @return {Boolean}
+     */
+    get is_terminal() {
+        return !this.has_downstream;
+    }
 
-  /**
-   * Check if a provided path matches this path
-   *
-   * @param {String} path - a path string to check against
-   * @return {Boolean} - true if the path matches
-   */
-  matches_path(path) {
-    return this.path === path
-  }
+    /**
+     * Check if this subscription will apply a user-supplied callback to data
+     *
+     * @return {Boolean}
+     */
+    get is_head() {
+        return !this.has_upstream;
+    }
 
-  /**
-   * Check if a provided uuid matches this uuid
-   *
-   * @param {Uuid} uuid - a uuid string to check against
-   * @return {Boolean} - true if the path matches
-   */
-  matches_uuid(uuid) {
-    return this.uuid === uuid
-  }
+    /**
+     * Check if subscription has any downstream subscriptions
+     *
+     * It the subscription refers to a remote datastore (the downstream), this
+     * getter will return a true. Note that !this.has_downstream will check if
+     * the subscription is the `tail` subscription object in a subscription chain.
+     *
+     * @return {Boolean}
+     */
+    get has_downstream() {
+        return this.downstream !== null;
+    }
 
-  /**
-   * Check if subscription path is beneath a provided path
-   *
-   * @param {String} path - a path string to check against
-   * @return {Boolean} - true if the subscription is beneath the path
-   */
-  is_beneath(path) {
-    return is_beneath(this.path, path)
-  }
+    /**
+     * Check if subscription has any upstream subscriptions
+     *
+     * It the subscription passes data back to a remote datastore (the upstream), this
+     * getter will return a true.
+     *
+     * @return {Boolean}
+     */
+    get has_upstream() {
+        return this.upstream !== null;
+    }
 
-  /**
-   * Check if subscription path is above a provided path
-   *
-   * @param {String} path - a path string to check against
-   * @return {Boolean} - true if the subscription is beneath the path
-   */
-  is_above(path) {
-    return is_beneath(path, this.path)
-  }
+
+    /**
+     * Check if an `event`/`unsubscribe` message matches this subscription
+     *
+     * @param {Entangld_Message} msg - a received message from a downstream datastore
+     * @return {Boolean} - True if the message is associated with the subscription
+     */
+    matches_message(msg) {
+        return this.matches_uuid(msg.uuid);
+    }
+
+    /**
+     * Check if a provided path matches this path
+     *
+     * @param {String} path - a path string to check against
+     * @return {Boolean} - true if the path matches
+     */
+    matches_path(path) {
+        return this.path === path
+    }
+
+    /**
+     * Check if a provided uuid matches this uuid
+     *
+     * @param {Uuid} uuid - a uuid string to check against
+     * @return {Boolean} - true if the path matches
+     */
+    matches_uuid(uuid) {
+        return this.uuid === uuid
+    }
+
+    /**
+     * Check if subscription path is beneath a provided path
+     *
+     * @param {String} path - a path string to check against
+     * @return {Boolean} - true if the subscription is beneath the path
+     */
+    is_beneath(path) {
+        return is_beneath(this.path, path)
+    }
+
+    /**
+     * Check if subscription path is above a provided path
+     *
+     * @param {String} path - a path string to check against
+     * @return {Boolean} - true if the subscription is beneath the path
+     */
+    is_above(path) {
+        return is_beneath(path, this.path)
+    }
+
+    /**
+     * Get a copy of this subscription without external references
+     *
+     * This creates a copy, except the upstream/downstream references
+     * are set to true (if they exist) or null (if they don't. Addtionally,
+     * the callback function is excluded.
+     *
+     * @return {Subscription} a copy of this subscription object
+     */
+    static_copy() {
+        return new Subscription({
+            path : this.path,
+            uuid : this.uuid, 
+            downstream : (this.downstream === null ? null : true), 
+            upstream : (this.upstream === null ? null : true),
+            every : this.every
+        })
+    }
 }
 
 
@@ -455,10 +543,13 @@ function is_beneath(a, b) {
 }
 /**
  * Synchronized Event Store
+ *
+ * @extends EventEmitter
  */
-class Entangld {
+class Entangld extends EventEmitter {
 
     constructor() {
+        super();
 
         this._stores = new Map();
         this._namespaces = new Map();
@@ -489,6 +580,19 @@ class Entangld {
     get namespaces() {
 
         return Array.from(this._stores.keys());
+    }
+
+    /**
+     * Get list of subscriptions associated with this object
+     *
+     * Note, this will include `head`, `terminal` and `pass through` subscriptions,
+     * which can be checked using getter methods of the subscription object.
+     *
+     * @readonly
+     * @return {Subscription[]} array of Subscriptions associated with this object
+     */
+    get subscriptions() {
+        return this._subscriptions.map(v => v.static_copy());
     }
 
     /**
@@ -541,7 +645,7 @@ class Entangld {
 
         // Re-subscribe
         subscriptions.forEach(s => {
-            this._subscribe(s.path, s.callback, s.upstream, s.uuid)
+            this._subscribe(s.path, s.callback, s.upstream, s.uuid, s.every);
         });
     }
 
@@ -639,7 +743,7 @@ class Entangld {
                 if (s.matches_message(msg)) {
 
                     // Call the callback
-                    s.callback(path, msg.value);
+                    s.call(path, msg.value);
                     count++;
                 }
             }
@@ -665,7 +769,7 @@ class Entangld {
                 //  potentially be beneath msg.params.tree
                 const response = Entangld_Message.event(path,val,msg.uuid);
                 this._transmit(response, obj);
-            }, obj, msg.uuid);
+            }, obj, msg.uuid, msg.every);
 
         } else if (msg.type == "unsubscribe") {
             // Incoming remote unsubscribe request
@@ -746,7 +850,7 @@ class Entangld {
                 //  i.e. cb("data.element",data), except, the callbacks often
                 //  don't check the path, so it will think it is getting a 'data'
                 //  object, not a "data.path" object . . .
-                if (s.is_above(path)) s.callback(path, data)
+                if (s.is_above(path)) s.call(path, data)
             }
 
         } else {
@@ -929,13 +1033,14 @@ class Entangld {
      *
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
+     * @param {number|null} [every=null] the number of `set` messages to wait before calling callback
      *
      * @throws {TypeError} if path is not a string.
      * @return {Uuid} - the uuid of the subscription
      */
-    subscribe(path, func) {
+    subscribe(path, func, every = null) {
 
-        return this._subscribe(path, func);
+        return this._subscribe(path, func, null, null, every);
     }
 
     /**
@@ -949,11 +1054,14 @@ class Entangld {
      * @param {function} func the callback - will be of the form (path, value).
      * @param {(Entangld|null)} [upstream=null] the Engangld next upstream in the path.
      * @param {(Uuid|null)} [uuid=null] the UUID to use for this subscription.
-     *
+     *  
+     * @emits {str} subscription - when this datastore is the terminal datastore of a
+     *                             subscription request, this datastore emits the path
+     *                             and uuid.
      * @throws {TypeError} if path is not a string.
      * @return {Uuid} - the uuid of the subscription
      */
-    _subscribe(path, func, upstream = null, uuid = null) {
+    _subscribe(path, func, upstream = null, uuid = null, every = null) {
 
 
         // Supply a UUID if none provided
@@ -972,14 +1080,18 @@ class Entangld {
             downstream : obj,
             upstream : upstream,
             uuid : uuid,
-            callback : func
+            callback : func,
+            every : every
         })
         this._subscriptions.push(new_sub);
 
         // Commission any subscribes downstream, if this is a remote subscription
         if (new_sub.has_downstream) {
-            const msg = Entangld_Message.subscribe(tree, uuid);
+            const msg = Entangld_Message.subscribe(tree, uuid, every);
             this._transmit(msg, obj);
+
+        } else { // this is the terminal datastore, so emit subscription received
+            this.emit("subscription", path, uuid) 
         }
 
         return new_sub.uuid
@@ -1002,18 +1114,6 @@ class Entangld {
         }
 
         return false;
-    }
-
-    /**
-     * Get all subscriptions currently owned by this datastore
-     *
-     * @param {string} [path] - the path to search under for subscriptions
-     *
-     * @return {Subscription[]} - all subscriptions owned by this datastore
-     */
-    owned_subscriptions(path) {
-        path = path ? path : "";
-        return this._subscriptions.filter(s => s.is_beneath(path))
     }
 
     /**
@@ -1113,10 +1213,12 @@ class Entangld {
 
         // Notify the downstream for any deleted subscriptions that are remote
         subscriptions.forEach((s) => {
-            if (!s.has_downstream) return
-
-            const msg = Entangld_Message.unsubscribe(s.uuid);
-            this._transmit(msg, s.downstream);
+            if (!s.has_downstream) { // emit unsubscription
+                this.emit("unsubscription", s.path, s.uuid);
+            } else { // Notify downstreams
+                const msg = Entangld_Message.unsubscribe(s.uuid);
+                this._transmit(msg, s.downstream);
+            }
         });
     }
 
