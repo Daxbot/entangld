@@ -1,6 +1,6 @@
 {
   "name": "entangld",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
   "jshintConfig": {
@@ -31,7 +31,8 @@
     "jshint": "^2.9.4",
     "jshint-stylish": "^2.2.1",
     "mocha": "^8.2.1",
-    "nodemon": "^1.11.0"
+    "nodemon": "^1.11.0",
+    "sockhop": "^1.4.3"
   },
   "dependencies": {
     "package-lock": "^1.0.5",

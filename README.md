@@ -354,7 +354,9 @@ A datastore subscription object
     * [.has_downstream](#Subscription+has_downstream) ⇒ <code>Boolean</code>
     * [.has_upstream](#Subscription+has_upstream) ⇒ <code>Boolean</code>
     * [.call()](#Subscription+call)
-    * [.matches_message(msg)](#Subscription+matches_message) ⇒ <code>Boolean</code>
+    * [.matches_subscription(sub)](#Subscription+matches_subscription) ⇒ <code>Boolean</code>
+    * [.matches_event_message(msg)](#Subscription+matches_event_message) ⇒ <code>Boolean</code>
+    * [.matches_unsubscribe_message(msg)](#Subscription+matches_unsubscribe_message) ⇒ <code>Boolean</code>
     * [.matches_path(path)](#Subscription+matches_path) ⇒ <code>Boolean</code>
     * [.matches_uuid(uuid)](#Subscription+matches_uuid) ⇒ <code>Boolean</code>
     * [.is_beneath(path)](#Subscription+is_beneath) ⇒ <code>Boolean</code>
@@ -436,10 +438,34 @@ This method also is safed when a callback function is not give (i.e.
 by the `this.static_copy()` method).
 
 **Kind**: instance method of [<code>Subscription</code>](#Subscription)  
-<a name="Subscription+matches_message"></a>
+<a name="Subscription+matches_subscription"></a>
 
-### subscription.matches\_message(msg) ⇒ <code>Boolean</code>
-Check if an `event`/`unsubscribe` message matches this subscription
+### subscription.matches\_subscription(sub) ⇒ <code>Boolean</code>
+Check if a different `Subscription` object matches this subscription
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
+**Returns**: <code>Boolean</code> - - True if the subscriptions match  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| sub | [<code>Subscription</code>](#Subscription) | a different subscription |
+
+<a name="Subscription+matches_event_message"></a>
+
+### subscription.matches\_event\_message(msg) ⇒ <code>Boolean</code>
+Check if an `event` message matches this subscription
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
+**Returns**: <code>Boolean</code> - - True if the message is associated with the subscription  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| msg | [<code>Entangld\_Message</code>](#Entangld_Message) | a received message from a downstream datastore |
+
+<a name="Subscription+matches_unsubscribe_message"></a>
+
+### subscription.matches\_unsubscribe\_message(msg) ⇒ <code>Boolean</code>
+Check if an `unsubscribe` message matches this subscription
 
 **Kind**: instance method of [<code>Subscription</code>](#Subscription)  
 **Returns**: <code>Boolean</code> - - True if the message is associated with the subscription  
