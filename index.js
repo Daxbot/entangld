@@ -278,12 +278,22 @@ class Subscription {
 
 
     /**
-     * Check if an `event`/`unsubscribe` message matches this subscription
+     * Check if an `event` message matches this subscription
      *
      * @param {Entangld_Message} msg - a received message from a downstream datastore
      * @return {Boolean} - True if the message is associated with the subscription
      */
-    matches_message(msg) {
+    matches_event_message(msg) {
+        return this.matches_uuid(msg.uuid) && this.matches_path(msg.path);
+    }
+
+    /**
+     * Check if an `unsubscribe` message matches this subscription
+     *
+     * @param {Entangld_Message} msg - a received message from a downstream datastore
+     * @return {Boolean} - True if the message is associated with the subscription
+     */
+    matches_unsubscribe_message(msg) {
         return this.matches_uuid(msg.uuid);
     }
 
@@ -734,16 +744,16 @@ class Entangld extends EventEmitter {
                 throw new ReferenceError("receive() called without object");
 
             // From our perspective the path is now prepended with the namespace
-            let path = this._namespaces.get(obj) + "." + msg.path;
+            msg.path = this._namespaces.get(obj) + "." + msg.path;
 
             // Find and dispatch any subscriptions
             let count = 0;
             for (let s of this._subscriptions) {
 
-                if (s.matches_message(msg)) {
+                if (s.matches_event_message(msg)) {
 
                     // Call the callback
-                    s.call(path, msg.value);
+                    s.call(msg.path, msg.value);
                     count++;
                 }
             }
@@ -776,7 +786,7 @@ class Entangld extends EventEmitter {
 
             // Unsubscribe to any matching subscriptions.
             this._unsubscribe(this._subscriptions.filter(
-              s => s.matches_message(msg))
+              s => s.matches_unsubscribe_message(msg))
             );
 
         } else {
@@ -1206,7 +1216,7 @@ class Entangld extends EventEmitter {
         // Get a list of uuids to remove
         const uuids = subscriptions.map(s => s.uuid);
 
-        // Get all the subscriptions which match the provided uuids
+        // Drop all subscriptions with matching uuid
         this._subscriptions = this._subscriptions.filter(
             s => !(uuids.includes(s.uuid))
         );
