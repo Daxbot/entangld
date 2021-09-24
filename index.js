@@ -230,7 +230,7 @@ class Subscription {
      * @return {Boolean}
      */
     get is_pass_through() {
-        return this.has_upstream
+        return this.has_upstream;
     }
 
     /**
@@ -278,13 +278,26 @@ class Subscription {
 
 
     /**
+     * Check if a different `Subscription` object matches this subscription
+     *
+     * @param {Subscription} sub - a different subscription
+     * @return {Boolean} - True if the subscriptions match
+     */
+    matches_subscription(sub) {
+        return this.matches_uuid(sub.uuid) && this.matches_path(sub.path);
+    }
+
+    /**
      * Check if an `event` message matches this subscription
      *
      * @param {Entangld_Message} msg - a received message from a downstream datastore
      * @return {Boolean} - True if the message is associated with the subscription
      */
     matches_event_message(msg) {
-        return this.matches_uuid(msg.uuid) && this.matches_path(msg.path);
+        // should be above, otherwise events below a subscription won't
+        // trigger the callback. I.e. subscribing to `flower` won't
+        // trigger when someone sets `flower.color`
+        return this.matches_uuid(msg.uuid) && this.is_above(msg.path);
     }
 
     /**
@@ -304,7 +317,7 @@ class Subscription {
      * @return {Boolean} - true if the path matches
      */
     matches_path(path) {
-        return this.path === path
+        return this.path === path;
     }
 
     /**
@@ -314,7 +327,7 @@ class Subscription {
      * @return {Boolean} - true if the path matches
      */
     matches_uuid(uuid) {
-        return this.uuid === uuid
+        return this.uuid === uuid;
     }
 
     /**
@@ -334,7 +347,7 @@ class Subscription {
      * @return {Boolean} - true if the subscription is beneath the path
      */
     is_above(path) {
-        return is_beneath(path, this.path)
+        return is_beneath(path, this.path);
     }
 
     /**
@@ -651,7 +664,7 @@ class Entangld extends EventEmitter {
         );
 
         // Clean up the old entries
-        this._unsubscribe(subscriptions)
+        this._unsubscribe(subscriptions);
 
         // Re-subscribe
         subscriptions.forEach(s => {
@@ -1084,7 +1097,7 @@ class Entangld extends EventEmitter {
 
         let [obj, /*namespace*/, tree] = this._get_remote_object(path);
 
-        // Add to our subscriptions list
+        // Create the subscription object
         let new_sub = new Subscription({
             path : path,
             downstream : obj,
@@ -1093,6 +1106,16 @@ class Entangld extends EventEmitter {
             callback : func,
             every : every
         })
+        // Filter out any residual subscriptions
+        // Note, residual subscriptions should only exist if a remote datastore (connected via a 
+        // socket, or something like that) re-attaches this datastore after the connection between
+        // the two was uncerimonally destroyed, otherwise the internal clean up of the attach 
+        // should have propegated down to prevent this.
+        // Note, this should still allow circular references, since "match_subscriptions" requires
+        // both the uuid and path to match
+        this._subscriptions = this._subscriptions.filter(sub => !new_sub.matches_subscription(sub));
+        
+        // Add the new subscription here
         this._subscriptions.push(new_sub);
 
         // Commission any subscribes downstream, if this is a remote subscription
