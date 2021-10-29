@@ -362,8 +362,8 @@ class Subscription {
     static_copy() {
         return new Subscription({
             path : this.path,
-            uuid : this.uuid, 
-            downstream : (this.downstream === null ? null : true), 
+            uuid : this.uuid,
+            downstream : (this.downstream === null ? null : true),
             upstream : (this.upstream === null ? null : true),
             every : this.every
         })
@@ -751,6 +751,9 @@ class Entangld extends EventEmitter {
             let resolve = this._requests[msg.uuid];
             resolve(msg.value);
 
+            //Clean up request
+            delete this._requests[msg.uuid];
+
         } else if (msg.type == "event") {
             // Incoming event
             if (obj === undefined)
@@ -1077,7 +1080,7 @@ class Entangld extends EventEmitter {
      * @param {function} func the callback - will be of the form (path, value).
      * @param {(Entangld|null)} [upstream=null] the Engangld next upstream in the path.
      * @param {(Uuid|null)} [uuid=null] the UUID to use for this subscription.
-     *  
+     *
      * @emits {str} subscription - when this datastore is the terminal datastore of a
      *                             subscription request, this datastore emits the path
      *                             and uuid.
@@ -1107,14 +1110,14 @@ class Entangld extends EventEmitter {
             every : every
         })
         // Filter out any residual subscriptions
-        // Note, residual subscriptions should only exist if a remote datastore (connected via a 
+        // Note, residual subscriptions should only exist if a remote datastore (connected via a
         // socket, or something like that) re-attaches this datastore after the connection between
-        // the two was uncerimonally destroyed, otherwise the internal clean up of the attach 
+        // the two was uncerimonally destroyed, otherwise the internal clean up of the attach
         // should have propegated down to prevent this.
         // Note, this should still allow circular references, since "match_subscriptions" requires
         // both the uuid and path to match
         this._subscriptions = this._subscriptions.filter(sub => !new_sub.matches_subscription(sub));
-        
+
         // Add the new subscription here
         this._subscriptions.push(new_sub);
 
@@ -1124,7 +1127,7 @@ class Entangld extends EventEmitter {
             this._transmit(msg, obj);
 
         } else { // this is the terminal datastore, so emit subscription received
-            this.emit("subscription", path, uuid) 
+            this.emit("subscription", path, uuid)
         }
 
         return new_sub.uuid

@@ -178,6 +178,7 @@ describe("Local storage",()=>{
 		});
 	});
 
+
 	it("Set entire tree at empty path",()=>{
 
 		let s=new Entangld();
@@ -349,6 +350,17 @@ describe("Multiplexed stores",()=>{
 			return Promise.resolve();
 		});
 
+	});
+
+	it("Removes internal _requests reference after get", ()=>{
+
+		var request_length = Object.keys(s._requests).length;
+
+		return s.get("a.system.speed").then((val)=>{
+
+			assert.strictEqual(request_length, Object.keys(s._requests).length);
+			return Promise.resolve();
+		});
 	});
 
 	it("Remote set single root value into child store", ()=>{
