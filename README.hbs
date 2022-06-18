@@ -5,7 +5,9 @@ Synchronized key-value stores with RPCs and pub/sub events.  Works over sockets 
 ## Examples
 Basic use:
 ```js
-    let e=new Entangld();
+    const { Datastore } = require("entangld");
+
+    let e=new Datastore();
 
     // Simple set/get
     e.set("number.six",6);
@@ -28,8 +30,8 @@ Basic use:
 
 Pairing two data stores together:
 ```js
-    let parent=new Entangld();
-    let child=new Entangld();
+    let parent=new Datastore();
+    let child=new Datastore();
 
     // Attach child namespace
     parent.attach("child",child);
@@ -95,7 +97,7 @@ Over sockets:
      * Parent / server setup
      */
 
-    let parent=new Entangld();
+    let parent=new Datastore();
     let server=new Sockhop.server();
 
     // Connect server to parent store
@@ -122,7 +124,7 @@ Over sockets:
      * Child / client setup
      */
 
-    let child=new Entangld();
+    let child=new Datastore();
     let client=new Sockhop.client();
 
     // Connect client to child store

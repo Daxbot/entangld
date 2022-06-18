@@ -1,4 +1,4 @@
-const Entangld=require("../index.js");
+const Entangld=require("../index.js").Datastore;
 const sockhop=require("sockhop");
 const assert=require("assert");
 
@@ -19,13 +19,13 @@ describe("Sockets", function() {
         server = new sockhop.server({
             address : "localhost",
             port : 9876
-        })
-        server.on("receive", (o, meta) => { console.log("s.r",o); s.receive(o, meta.socket) } );
+        });
+        server.on("receive", (o, meta) => { console.log("s.r",o); s.receive(o, meta.socket); } );
         client = new sockhop.client({
             address : "localhost",
             port : 9876
-        })
-        client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client) });
+        });
+        client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client); });
 
 
         s.transmit((msg, socket) => { // server's transmit to net-sockets
@@ -86,7 +86,7 @@ describe("Sockets", function() {
             while ( sock_ref.readyState !== "open" ) await wait(1);
             s.subscribe("path1.a.data");
             while ( a._subscriptions.length < 1 ) await wait(1);
-            s.detach("path1.a")
+            s.detach("path1.a");
             s.attach("path1.a",new Entangld());
             await wait(5); // set messages clear
             if ( a._subscriptions.length !== 0 ) done(new Error("Subscription never removed"));
@@ -102,7 +102,7 @@ describe("Sockets", function() {
             s.subscribe("path1.a.data");
             while ( a._subscriptions.length < 1 ) await wait(1);
             client.disconnect(); // kill the socket
-            s.detach("path1.a")
+            s.detach("path1.a");
             s.attach("path1.a",new Entangld());
             await wait(5); // set messages clear
             if ( a._subscriptions.length !== 1 ) done(new Error("Subscription was removed!?"));
@@ -128,8 +128,8 @@ describe("Sockets", function() {
             client = new sockhop.client({
                 address : "localhost",
                 port : 9876
-            })
-            client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client) });
+            });
+            client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client); });
             client.connect();
             while ( !sock_ref ) await wait(1);
             while ( sock_ref.readyState !== "open" ) await wait(1);

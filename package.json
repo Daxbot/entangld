@@ -8,13 +8,10 @@
     "unused": true
   },
   "scripts": {
-    "//": "DEV RULES",
-    "test": "mocha",
-    "lint:js": "jshint --reporter=node_modules/jshint-stylish index.js test/",
-    "build": "npm run lint:js -s && npm run test -s && npm run docs -s",
-    "watch:lint:js": "nodemon -w index.js -w test/ -x npm run lint:js -s",
-    "dev": "nodemon -w index.js -w test/ -x npm run build -s",
-    "docs": "node generate_docs.js"
+    "test": "npx mocha",
+    "lint": "npx eslint lib test index.js || true",
+    "lint:fix": "npx eslint --fix lib test index.js || true",
+    "build": "node scripts/generate_docs.js"
   },
   "repository": {
     "type": "git",
@@ -28,13 +25,15 @@
   "license": "MIT",
   "homepage": "https://daxbot.com/open-source",
   "devDependencies": {
+    "@babel/eslint-parser": "^7.18.2",
+    "@babel/preset-env": "^7.18.2",
+    "eslint": "^8.18.0",
+    "eslint-plugin-node": "^11.1.0",
     "fs-then-native": "^2.0.0",
     "jsdoc-to-markdown": "^7.1.1",
-    "jshint": "^2.13.1",
-    "jshint-stylish": "^2.2.1",
     "mocha": "^10.0.0",
     "nodemon": "^2.0.16",
-    "sockhop": "^1.4.3"
+    "sockhop": "^1.6.0"
   },
   "dependencies": {
     "uuid": "^8.3.2"

@@ -1,4 +1,4 @@
-const Entangld=require("../index.js");
+const Entangld=require("../index.js").Datastore;
 const assert=require("assert");
 
 

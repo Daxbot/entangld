@@ -1,4 +1,4 @@
-var Entangld=require("../index.js");
+let Entangld = require("../index.js").Datastore;
 
 function wait (ms) {
     return new Promise(res=>setTimeout(res,ms));
