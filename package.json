@@ -29,15 +29,14 @@
   "homepage": "https://daxbot.com/open-source",
   "devDependencies": {
     "fs-then-native": "^2.0.0",
-    "jsdoc-to-markdown": "^6.0.1",
+    "jsdoc-to-markdown": "^7.1.1",
     "jshint": "^2.13.1",
     "jshint-stylish": "^2.2.1",
-    "mocha": "^8.4.0",
-    "nodemon": "^1.11.0",
+    "mocha": "^10.0.0",
+    "nodemon": "^2.0.16",
     "sockhop": "^1.4.3"
   },
   "dependencies": {
-    "package-lock": "^1.0.5",
-    "uuid": "^3.0.1"
+    "uuid": "^8.3.2"
   }
 }

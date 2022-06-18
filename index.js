@@ -1,4 +1,4 @@
-const Uuid = require("uuid");
+const { v4:uuidv4 } = require("uuid");
 const EventEmitter = require("events");
 const uuid_regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -58,7 +58,7 @@ class Entangld_Message {
         type: "get",
         path : tree, // path needs to be relative to downstream store
         value : get_params,
-        uuid : Uuid() // Gets generate a new uuid
+        uuid : uuidv4() // Gets generate a new uuid
       });
     }
 
@@ -102,7 +102,7 @@ class Entangld_Message {
     * Construct subscribe message
     *
     * @param {string} tree - the path (relative to the downstream datastore)
-    * @param {Uuid} uuid - the subscription uuid
+    * @param {uuidv4} uuid - the subscription uuid
     * @return {Entangld_Message} the `subscribe` message
     */
     static subscribe(tree, uuid, every = null) {
@@ -119,7 +119,7 @@ class Entangld_Message {
      *
      * @param {string} path - the path (relative to the downstream store)
      * @param {*} value - the updated datastore value at the path
-     * @param {Uuid} uuid - the uuid of the subscribe being triggered
+     * @param {uuidv4} uuid - the uuid of the subscribe being triggered
      * @return {Entangld_Message} the `event` message
      */
     static event(path, value, uuid) {
@@ -170,7 +170,7 @@ class Subscription {
      * @param {Object} obj - the configuration object
      * @param {string} obj.path - the datastore path (relative to this datastore)
      *                             of the subscription
-     * @param {Uuid} obj.uuid - the uuid of the subscription chain
+     * @param {uuidv4} obj.uuid - the uuid of the subscription chain
      * @param {function} obj.callback - the callback function, with signature (path, value),
      *                               where path is relative to this datastore
      * @param {(Entangld|null)} obj.downstream - the downstream datastore (if any)
@@ -323,7 +323,7 @@ class Subscription {
     /**
      * Check if a provided uuid matches this uuid
      *
-     * @param {Uuid} uuid - a uuid string to check against
+     * @param {uuidv4} uuid - a uuid string to check against
      * @return {Boolean} - true if the path matches
      */
     matches_uuid(uuid) {
@@ -1062,7 +1062,7 @@ class Entangld extends EventEmitter {
      * @param {number|null} [every=null] the number of `set` messages to wait before calling callback
      *
      * @throws {TypeError} if path is not a string.
-     * @return {Uuid} - the uuid of the subscription
+     * @return {uuidv4} - the uuid of the subscription
      */
     subscribe(path, func, every = null) {
 
@@ -1079,19 +1079,19 @@ class Entangld extends EventEmitter {
      * @param {string} path the path to watch.
      * @param {function} func the callback - will be of the form (path, value).
      * @param {(Entangld|null)} [upstream=null] the Engangld next upstream in the path.
-     * @param {(Uuid|null)} [uuid=null] the UUID to use for this subscription.
+     * @param {(uuidv4|null)} [uuid=null] the UUID to use for this subscription.
      *
      * @emits {str} subscription - when this datastore is the terminal datastore of a
      *                             subscription request, this datastore emits the path
      *                             and uuid.
      * @throws {TypeError} if path is not a string.
-     * @return {Uuid} - the uuid of the subscription
+     * @return {uuidv4} - the uuid of the subscription
      */
     _subscribe(path, func, upstream = null, uuid = null, every = null) {
 
 
         // Supply a UUID if none provided
-        uuid = uuid || Uuid();
+        uuid = uuid || uuidv4();
 
 
         // Sanity check
@@ -1159,7 +1159,7 @@ class Entangld extends EventEmitter {
      * path will be deleted, so if you have multiple subscriptions on a single path,
      * and only want one of them to be removed, you must provide the uuid instead.
      *
-     * @param {(String|Uuid)} path_or_uuid - the path (or uuid) to unwatch.
+     * @param {(String|uuidv4)} path_or_uuid - the path (or uuid) to unwatch.
      * @throws {EntangldError} if no subscriptions were found.
      * @return {number} count of subscriptions removed.
      */
