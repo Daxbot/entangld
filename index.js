@@ -337,7 +337,7 @@ class Subscription {
      * @return {Boolean} - true if the subscription is beneath the path
      */
     is_beneath(path) {
-        return is_beneath(this.path, path)
+        return is_beneath(this.path, path, 'a');
     }
 
     /**
@@ -347,7 +347,7 @@ class Subscription {
      * @return {Boolean} - true if the subscription is beneath the path
      */
     is_above(path) {
-        return is_beneath(path, this.path);
+        return is_beneath(path, this.path, 'b');
     }
 
     /**
@@ -539,10 +539,11 @@ function partial_copy(o, max_depth) {
  *
  * @private
  * @param {string} a the string tested for "insideness"
- * @param {string} b the string tested for "outsideness"
+ * @param {string} b the string tested for "outsideness" (wildcard '*' allowed)
+ * @param {string} [allow_wildcard = false] allow wildcards, one of ('a', 'b', false).  Default is false (no wildcard allowed)
  * @return boolean
  */
-function is_beneath(a, b) {
+function is_beneath(a, b, allow_wildcard=false) {
 
     // Everything is beneath the top ("")
     if(b==="") return true;
@@ -553,10 +554,33 @@ function is_beneath(a, b) {
     let A=a.split(".");
     let B=b.split(".");
 
-    // A is not beneath B if any part is not the same
-    while(A.length && B.length){
+    // A is not beneath B if any part is not the same.  Check for this.
+    switch (allow_wildcard) {
 
-        if(A.shift()!=B.shift()) return false;
+        case "a":
+            // Allow wildcard in A
+            while(A.length && B.length){
+
+                let A_part=A.shift();
+                if(A_part!=B.shift() && A_part != "*") return false;
+            }
+            break;
+
+        case "b":
+            // Allow wildcard in B
+            while(A.length && B.length){
+
+                let B_part=B.shift();
+                if(B_part!=A.shift() && B_part != "*") return false;
+            }
+            break;
+        
+        default:
+            // No wildcards allowed
+            while(A.length && B.length){
+                    
+               if(A.shift()!=B.shift()) return false;
+            }
     }
 
     // A is not beneath B if B is longer
@@ -1057,7 +1081,7 @@ class Entangld extends EventEmitter {
      * subscriptions can be checked to see if they are `pass through` type via
      * the getter `sub.is_pass_through`.
      *
-     * @param {string} path the path to watch.
+     * @param {string} path the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*")
      * @param {function} func the callback - will be of the form (path, value).
      * @param {number|null} [every=null] the number of `set` messages to wait before calling callback
      *
