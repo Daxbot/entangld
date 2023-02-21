@@ -18,6 +18,29 @@ describe("Events",()=>{
     a.transmit((msg, store)=>store.receive(msg, a));
     b.transmit((msg, store)=>store.receive(msg, b));
 
+
+    // Original tests were written with globals and are thus not independent.  I'm adding (JLS 2023-02-21) some "clean" scaffolding.
+    // TODO - we should eventually rewrite tests to use these new objects.
+    let A,B,S;
+    beforeEach(()=>{
+
+        S=new Entangld();
+        A=new Entangld();
+        B=new Entangld();
+
+        S.attach("a",A);
+        S.attach("b",B);
+
+        A.attach("parent", S);
+        B.attach("parent", S);
+
+        S.transmit((msg, store)=>store.receive(msg, S));
+        A.transmit((msg, store)=>store.receive(msg, A));
+        B.transmit((msg, store)=>store.receive(msg, B));
+        
+    });
+
+
     it("Subscribe to local event (exact)", (done)=>{
 
         s.subscribe("my.own.event",(path, val)=>{
@@ -51,6 +74,22 @@ describe("Events",()=>{
         });
 
         a.set("system.voltage",21);
+    });
+
+    it("Subscribe to remote event (wildcard)", (done)=>{
+
+        S.subscribe("a.*.voltage",(path, val)=>{
+
+            assert.strictEqual(path,"a.system.voltage");
+            assert.strictEqual(val, 21);
+
+            // Check for proper internals
+            assert.strictEqual(s._subscriptions.length,1);
+            assert.strictEqual(a._subscriptions.length,1);
+            done();
+        });
+
+        A.set("system.voltage",21);
     });
 
     it("Subscribe to remote event (descendant of subscribed path also triggers event)", (done)=>{

@@ -337,7 +337,7 @@ class Subscription {
      * @return {Boolean} - true if the subscription is beneath the path
      */
     is_beneath(path) {
-        return is_beneath(this.path, path)
+        return is_beneath(this.path, path);
     }
 
     /**
@@ -556,7 +556,9 @@ function is_beneath(a, b) {
     // A is not beneath B if any part is not the same
     while(A.length && B.length){
 
-        if(A.shift()!=B.shift()) return false;
+        let A_part=A.shift();
+        let B_part=B.shift();
+        if(A_part!=B_part && B_part != "*") return false;
     }
 
     // A is not beneath B if B is longer
@@ -1057,7 +1059,7 @@ class Entangld extends EventEmitter {
      * subscriptions can be checked to see if they are `pass through` type via
      * the getter `sub.is_pass_through`.
      *
-     * @param {string} path the path to watch.
+     * @param {string} path the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*")
      * @param {function} func the callback - will be of the form (path, value).
      * @param {number|null} [every=null] the number of `set` messages to wait before calling callback
      *
