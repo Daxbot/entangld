@@ -145,6 +145,7 @@ Any object can store values.  And a Map can store values keyed to objects.  But 
 - Have your store synchronized with multiple data sources (other stores)?
 - Over a network?
 - Subscribe to events within the datastore?
+- Support subscription wildcards?
 
 ## Notes
 
@@ -191,7 +192,8 @@ downstream datastores do not necessarilly have access to the upstream store
 structure, and so cannot generally construct upstream paths. This means that
 the <code>.path</code> attribute is a <code>tree</code> relative to the upstream datastore, and
 the upstream path can be reconstructed as:</p>
-<pre><code class="language-javascript"> &gt; upstream._namespaces.get(downstream) + &quot;.&quot; + msg.path;</code></pre>
+<pre><code class="language-javascript"> &gt; upstream._namespaces.get(downstream) + &quot;.&quot; + msg.path;
+</code></pre>
 <p>Since <code>unsubscribe</code> messages can pass either upstream or downstream, the notion
 of a path is ill-defined, and so unsubscribe messages should have their <code>.path</code>
 attributes set to undefined or null.</p>
@@ -306,7 +308,7 @@ Construct subscribe message
 | Param | Type | Description |
 | --- | --- | --- |
 | tree | <code>string</code> | the path (relative to the downstream datastore) |
-| uuid | <code>Uuid</code> | the subscription uuid |
+| uuid | <code>uuidv4</code> | the subscription uuid |
 
 <a name="Entangld_Message.event"></a>
 
@@ -320,7 +322,7 @@ Create an `event` message to return data to subscribe callbacks
 | --- | --- | --- |
 | path | <code>string</code> | the path (relative to the downstream store) |
 | value | <code>\*</code> | the updated datastore value at the path |
-| uuid | <code>Uuid</code> | the uuid of the subscribe being triggered |
+| uuid | <code>uuidv4</code> | the uuid of the subscribe being triggered |
 
 <a name="Entangld_Message.unsubscribe"></a>
 
@@ -374,7 +376,7 @@ Constructor
 | --- | --- | --- |
 | obj | <code>Object</code> | the configuration object |
 | obj.path | <code>string</code> | the datastore path (relative to this datastore)                             of the subscription |
-| obj.uuid | <code>Uuid</code> | the uuid of the subscription chain |
+| obj.uuid | <code>uuidv4</code> | the uuid of the subscription chain |
 | obj.callback | <code>function</code> | the callback function, with signature (path, value),                               where path is relative to this datastore |
 | obj.downstream | [<code>Entangld</code>](#Entangld) \| <code>null</code> | the downstream datastore (if any)                                          associated with this subscription |
 | obj.upstream | [<code>Entangld</code>](#Entangld) \| <code>null</code> | the upstream datastore (if any)                                          associated with this subscription |
@@ -496,7 +498,7 @@ Check if a provided uuid matches this uuid
 
 | Param | Type | Description |
 | --- | --- | --- |
-| uuid | <code>Uuid</code> | a uuid string to check against |
+| uuid | <code>uuidv4</code> | a uuid string to check against |
 
 <a name="Subscription+is_beneath"></a>
 
@@ -552,7 +554,7 @@ Synchronized Event Store
     * [.push(path, data, [limit])](#Entangld+push)
     * [.set(path, data, [operation_type], [params])](#Entangld+set)
     * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
-    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>Uuid</code>
+    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
     * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
     * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
@@ -720,7 +722,7 @@ recursion and may be expensive.
 
 <a name="Entangld+subscribe"></a>
 
-### entangld.subscribe(path, func, [every]) ⇒ <code>Uuid</code>
+### entangld.subscribe(path, func, [every]) ⇒ <code>uuidv4</code>
 Subscribe to change events for a path
 
 If objects at or below this path change, you will get a callback
@@ -753,7 +755,7 @@ subscriptions can be checked to see if they are `pass through` type via
 the getter `sub.is_pass_through`.
 
 **Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>Uuid</code> - - the uuid of the subscription  
+**Returns**: <code>uuidv4</code> - - the uuid of the subscription  
 **Throws**:
 
 - <code>TypeError</code> if path is not a string.
@@ -761,7 +763,7 @@ the getter `sub.is_pass_through`.
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
-| path | <code>string</code> |  | the path to watch. |
+| path | <code>string</code> |  | the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*") |
 | func | <code>function</code> |  | the callback - will be of the form (path, value). |
 | [every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
 
@@ -797,7 +799,7 @@ and only want one of them to be removed, you must provide the uuid instead.
 
 | Param | Type | Description |
 | --- | --- | --- |
-| path_or_uuid | <code>String</code> \| <code>Uuid</code> | the path (or uuid) to unwatch. |
+| path_or_uuid | <code>String</code> \| <code>uuidv4</code> | the path (or uuid) to unwatch. |
 
 <a name="Entangld+unsubscribe_tree"></a>
 
