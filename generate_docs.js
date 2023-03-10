@@ -1,4 +1,4 @@
-const fs=require("fs-then-native");
+const fs=require("fs");
 const jsdoc2md=require("jsdoc-to-markdown");
 
 const templatefile=fs.readFileSync("README.hbs", "utf8");

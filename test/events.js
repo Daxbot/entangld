@@ -37,7 +37,7 @@ describe("Events",()=>{
         S.transmit((msg, store)=>store.receive(msg, S));
         A.transmit((msg, store)=>store.receive(msg, A));
         B.transmit((msg, store)=>store.receive(msg, B));
-        
+
     });
 
 

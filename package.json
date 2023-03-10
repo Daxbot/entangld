@@ -12,9 +12,9 @@
     "test": "mocha",
     "lint:js": "jshint --reporter=node_modules/jshint-stylish index.js test/",
     "build": "npm run lint:js -s && npm run test -s && npm run docs -s",
-    "watch:lint:js": "nodemon -w index.js -w test/ -x npm run lint:js -s",
-    "dev": "nodemon -w index.js -w test/ -x npm run build -s",
-    "docs": "node generate_docs.js"
+    "docs": "node generate_docs.js",
+    "lint": "npx eslint lib test index.js || true",
+    "lint:fix": "npx eslint --fix lib test index.js || true"
   },
   "repository": {
     "type": "git",
@@ -22,16 +22,15 @@
   },
   "author": "c0d3",
   "contributors": [
-    "Wilkins White <wilkins.white@daxbot.com>",
-    "Jonathan Van Schenck <jon.vanschenck@daxbot.com>"
+    "Wilkins White <ww@novadynamics.com>",
+    "Jonathan Van Schenck <jvschenck@novadynamics.com>"
   ],
   "license": "MIT",
   "homepage": "https://daxbot.com/open-source",
   "devDependencies": {
-    "fs-then-native": "^2.0.0",
+    "eslint": "^8.35.0",
+    "eslint-plugin-node": "^11.1.0",
     "jsdoc-to-markdown": "^7.1.1",
-    "jshint": "^2.13.1",
-    "jshint-stylish": "^2.2.1",
     "mocha": "^10.0.0",
     "nodemon": "^2.0.16",
     "sockhop": "^1.4.3"

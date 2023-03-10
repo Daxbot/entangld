@@ -1,9 +1,5 @@
 var Entangld=require("../index.js");
 
-function wait (ms) {
-    return new Promise(res=>setTimeout(res,ms));
-}
-
 describe("Circular References", function() {
     let s,a,b;
 
@@ -23,9 +19,9 @@ describe("Circular References", function() {
     });
 
     afterEach(function() {
-        delete s;
-        delete a;
-        delete b;
+        delete s; // eslint-disable-line no-delete-var
+        delete a; // eslint-disable-line no-delete-var
+        delete b; // eslint-disable-line no-delete-var
     });
 
     it("Circular subscriptions don't break", function(done) {
