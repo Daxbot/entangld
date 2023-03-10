@@ -19,9 +19,9 @@ describe("Subscription", function() {
     });
 
     afterEach(function() {
-        delete s;
-        delete a;
-        delete b;
+        delete s; // eslint-disable-line no-delete-var
+        delete a; // eslint-disable-line no-delete-var
+        delete b; // eslint-disable-line no-delete-var
     });
 
     it("Should only trigger subscriptions on an exact match", function(done) {
@@ -35,14 +35,14 @@ describe("Subscription", function() {
     });
 
     it("Should emit on recieved subscriptions (locally)", function(done) {
-        s.on("subscription", ( path, uuid ) => {
+        s.on("subscription", ( path ) => {
             if ( path === "test" ) { done(); return; }
             assert.fail("Subcription yield path " + path);
         });
         s.subscribe('test', () => {});
     });
     it("Should emit on recieved unsubscriptions (locally)", function(done) {
-        s.on("unsubscription", ( path, uuid ) => {
+        s.on("unsubscription", ( path ) => {
             if ( path === "test" ) { done(); return; }
             assert.fail("Subcription yield path " + path);
         });
@@ -51,14 +51,14 @@ describe("Subscription", function() {
     });
 
     it("Should emit on recieved subscriptions (remote)", function(done) {
-        a.on("subscription", ( path, uuid ) => {
+        a.on("subscription", ( path ) => {
             if ( path === "some_data" ) { done(); return; }
             assert.fail("Subcription yield path " + path);
         });
         s.subscribe('path1.A.some_data', () => {});
     });
     it("Should emit on recieved unsubscriptions (remote)", function(done) {
-        a.on("unsubscription", ( path, uuid ) => {
+        a.on("unsubscription", ( path ) => {
             if ( path === "some_data" ) { done(); return; }
             assert.fail("Subcription yield path " + path);
         });
@@ -67,7 +67,7 @@ describe("Subscription", function() {
     });
 
     it("Shouldn't emit on sent subscriptions (remote)", function(done) {
-        s.on("subscription", ( path, uuid ) => {
+        s.on("subscription", () => {
             assert.fail("this shouldn't run");
         });
         s.subscribe('path1.A.path3.B.something', () => {});
@@ -75,7 +75,7 @@ describe("Subscription", function() {
         done();
     });
     it("Shouldn't emit on sent unsubscriptions (remote)", function(done) {
-        s.on("unsubscription", ( path, uuid ) => {
+        s.on("unsubscription", () => {
             assert.fail("this shouldn't run");
         });
         s.subscribe('path1.A.path3.B.something', () => {});
@@ -84,7 +84,7 @@ describe("Subscription", function() {
         done();
     });
     it("Shouldn't emit on passthrough subscriptions (remote)", function(done) {
-        a.on("subscription", ( path, uuid ) => {
+        a.on("subscription", () => {
             assert.fail("this shouldn't run");
         });
         s.subscribe('path1.A.path3.B.something', () => {});
@@ -92,7 +92,7 @@ describe("Subscription", function() {
         done();
     });
     it("Shouldn't emit on passthrough unsubscriptions (remote)", function(done) {
-        a.on("unsubscription", ( path, uuid ) => {
+        a.on("unsubscription", () => {
             assert.fail("this shouldn't run");
         });
         s.subscribe('path1.A.path3.B.something', () => {});
@@ -103,7 +103,7 @@ describe("Subscription", function() {
 
     it("Emit on each subscription", function(done) {
         let count = 0;
-        b.on("subscription", ( path, uuid ) => {
+        b.on("subscription", ( path ) => {
             count += 1;
             assert.strictEqual(path, "something");
         });
@@ -118,8 +118,8 @@ describe("Subscription", function() {
 
         var count = 0;
         // Create two subscriptions
-        s.subscribe("some_data", () => {count += 1});
-        s.subscribe("some_data", () => {count += 1});
+        s.subscribe("some_data", () => {count += 1;});
+        s.subscribe("some_data", () => {count += 1;});
 
         s.set('some_data', 0.0);
 
@@ -130,7 +130,7 @@ describe("Subscription", function() {
 
     it("Can (not) throttle subscription messages (locally)", (done) => {
         var count = 0;
-        s.subscribe("some_data", (path, value) => { count += 1 }, 1)
+        s.subscribe("some_data", () => { count += 1; }, 1);
         for ( let i = 0; i < 10; i ++ ) {
             s.set("some_data", 1);
         }
@@ -140,7 +140,7 @@ describe("Subscription", function() {
 
     it("Can throttle subscription messages (locally)", (done) => {
         var count = 0;
-        s.subscribe("some_data", (path, value) => { count += 1 }, 2)
+        s.subscribe("some_data", () => { count += 1; }, 2);
         for ( let i = 0; i < 10; i ++ ) {
             s.set("some_data", 1);
         }
@@ -150,7 +150,7 @@ describe("Subscription", function() {
 
     it("Can throttle subscription messages (remote)", (done) => {
         var count = 0;
-        s.subscribe("path1.A.path3.B.some_data", (path, value) => { count += 1 }, 2)
+        s.subscribe("path1.A.path3.B.some_data", () => { count += 1; }, 2);
         for ( let i = 0; i < 10; i ++ ) {
             b.set("some_data", 1);
         }
@@ -162,8 +162,8 @@ describe("Subscription", function() {
 
         var count = 0;
         // Create two subscriptions
-        s.subscribe("some_data", () => {count += 1});
-        s.subscribe("some_data", () => {count += 1});
+        s.subscribe("some_data", () => {count += 1;});
+        s.subscribe("some_data", () => {count += 1;});
 
         s.set('some_data', 0.0);
 
@@ -176,8 +176,8 @@ describe("Subscription", function() {
 
         var count = 0;
         // Create two subscriptions
-        s.subscribe("path1.A.some_data", () => {count += 1});
-        s.subscribe("path1.A.some_data", () => {count += 1});
+        s.subscribe("path1.A.some_data", () => {count += 1;});
+        s.subscribe("path1.A.some_data", () => {count += 1;});
 
         a.set('some_data', 0.0);
 
@@ -190,26 +190,26 @@ describe("Subscription", function() {
         s.subscribe("num1", () => {});
         s.subscribe("path1.A.num1", () => {});
         s.subscribe("path1.A.path3.B.num1", () => {});
-        assert.strictEqual(s.subscriptions.length, 3)
-        assert.strictEqual(a.subscriptions.length, 2)
-        assert.strictEqual(b.subscriptions.length, 1)
+        assert.strictEqual(s.subscriptions.length, 3);
+        assert.strictEqual(a.subscriptions.length, 2);
+        assert.strictEqual(b.subscriptions.length, 1);
         done();
-    }); 
+    });
 
     it("Unsubscribing paths removes all paths", (done)=>{
 
         var count = 0;
         // Create two subscriptions
-        s.subscribe("some_data", () => {count += 1});
-        s.subscribe("some_data", () => {count += 1});
+        s.subscribe("some_data", () => {count += 1;});
+        s.subscribe("some_data", () => {count += 1;});
 
-        s.unsubscribe("some_data")
+        s.unsubscribe("some_data");
 
         s.set('some_data', 0.0);
 
         assert.strictEqual(count, 0);
 
-        done()
+        done();
     });
 
 
@@ -217,10 +217,10 @@ describe("Subscription", function() {
 
         var count = 0;
         // Create two subscriptions
-        let uuid1 = s.subscribe("some_data", () => {count += 1});
-        let uuid2 = s.subscribe("some_data", () => {count += 1});
+        let uuid1 = s.subscribe("some_data", () => {count += 1;});
+        let uuid2 = s.subscribe("some_data", () => {count += 1;});
 
-        s.unsubscribe(uuid1)
+        s.unsubscribe(uuid1);
 
         s.set('some_data', 0.0);
 
@@ -228,28 +228,28 @@ describe("Subscription", function() {
         assert.strictEqual(s._subscriptions.length, 1);
         assert.strictEqual(s._subscriptions[0].uuid, uuid2);
 
-        done()
+        done();
     });
 
     it("Pairs of remote stores can subscribe to the same data", (done)=>{
 
         var count = 0;
-        s.subscribe("path2.B.some_data", () => {count += 1});
-        a.subscribe("path3.B.some_data", () => {count += 1})
+        s.subscribe("path2.B.some_data", () => {count += 1;});
+        a.subscribe("path3.B.some_data", () => {count += 1;});
 
         b.set("some_data",0.0);
 
         assert.strictEqual(count, 2);
 
-        done()
+        done();
     });
 
 
     it("Pairs of remote stores don't unsubscribe each other", (done)=>{
 
         var count = 0;
-        let uuid1 = s.subscribe("path2.B.some_data", () => {count += 1});
-        let uuid2 = a.subscribe("path3.B.some_data", () => {count += 1})
+        s.subscribe("path2.B.some_data", () => {count += 1;});
+        let uuid2 = a.subscribe("path3.B.some_data", () => {count += 1;});
 
         s.unsubscribe("path2.B.some_data");
 
@@ -259,7 +259,7 @@ describe("Subscription", function() {
         assert.strictEqual(b._subscriptions.length, 1);
         assert.strictEqual(b._subscriptions[0].uuid, uuid2);
 
-        done()
+        done();
     });
 
     it("Orphaned remote subscriptions are successfully cleaned up", (done) => {
@@ -270,11 +270,11 @@ describe("Subscription", function() {
 
         s.transmit((msg, store)=> {
             if (msg.type==="unsubscribe") number_of_cancels_sent += 1;
-            store.receive(msg, s)
+            store.receive(msg, s);
         });
         a.transmit((msg, store)=> {
             if (msg.type==="event") number_of_events += 1;
-            store.receive(msg, a)
+            store.receive(msg, a);
         });
 
 
@@ -283,32 +283,32 @@ describe("Subscription", function() {
         // orphan the pass through subscription object in A
         s._subscriptions = [];
 
-        a.set("some_data",0.0)
+        a.set("some_data",0.0);
 
         // The cancel message was sent from S to A
-        assert.strictEqual(number_of_cancels_sent,1)
-        assert.strictEqual(number_of_events,1)
+        assert.strictEqual(number_of_cancels_sent,1);
+        assert.strictEqual(number_of_events,1);
 
-        a.set("some_data",0.0)
+        a.set("some_data",0.0);
 
         // A didn't sent the next next event
-        assert.strictEqual(number_of_events,1)
+        assert.strictEqual(number_of_events,1);
 
         done();
-    })
+    });
 
     it("Local sets only triggers a single subscribed callback when multiple subscriptions co-exist", (done)=>{
 
         // Subscribe once to a local endpoint
         var sub_1_triggers = 0;
-        s.subscribe("some_data",(path, val)=>{
+        s.subscribe("some_data",()=>{
             sub_1_triggers += 1;
             assert.strictEqual(sub_1_triggers, 1);
         });
 
         // Subscribe again to the same local endpoint
         var sub_2_triggers = 0;
-        s.subscribe("some_data",(path, val)=>{
+        s.subscribe("some_data",()=>{
             sub_2_triggers += 1;
             assert.strictEqual(sub_2_triggers, 1);
         });
@@ -322,14 +322,14 @@ describe("Subscription", function() {
 
         // Subscribe once to a remote endpoint
         var sub_1_triggers = 0;
-        s.subscribe("path1.A.some_data",(path, val)=>{
+        s.subscribe("path1.A.some_data",()=>{
             sub_1_triggers += 1;
             assert.strictEqual(sub_1_triggers, 1);
         });
 
         // Subscribe again to the same remote endpoint
         var sub_2_triggers = 0;
-        s.subscribe("path1.A.some_data",(path, val)=>{
+        s.subscribe("path1.A.some_data",()=>{
             sub_2_triggers += 1;
             assert.strictEqual(sub_2_triggers, 1);
         });

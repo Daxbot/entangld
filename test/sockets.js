@@ -1,16 +1,16 @@
-const Entangld=require("../index.js");
-const sockhop=require("sockhop");
-const assert=require("assert");
+const Entangld=require("../lib/Datastore.js");
+const sockhop=require("sockhop"); // eslint-disable-line node/no-unpublished-require
 
 function wait (ms) {
     return new Promise(res=>setTimeout(res,ms));
 }
 
 // FIXME : comment out for debugging
-console.log = () => {};
+// const _log = console.log;
+const _log = () => {};
 
 describe("Sockets", function() {
-    let server,client,sock_ref,s,a,b;
+    let server,client,sock_ref,s,a;
 
     beforeEach(function() {
         s = new Entangld();
@@ -19,21 +19,21 @@ describe("Sockets", function() {
         server = new sockhop.server({
             address : "localhost",
             port : 9876
-        })
-        server.on("receive", (o, meta) => { console.log("s.r",o); s.receive(o, meta.socket) } );
+        });
+        server.on("receive", (o, meta) => { _log("s.r",o); s.receive(o, meta.socket); } );
         client = new sockhop.client({
             address : "localhost",
             port : 9876
-        })
-        client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client) });
+        });
+        client.on("receive", (o) => { _log("c.r",o); a.receive(o, client); });
 
 
         s.transmit((msg, socket) => { // server's transmit to net-sockets
-            console.log("s.t",msg);
+            _log("s.t",msg);
             if ( socket.readyState == 'open' ) server.send(socket, msg);
         });
         a.transmit((msg, client) => { // client's transmit to sockhop client
-            console.log("a.t",msg);
+            _log("a.t",msg);
             if ( client.connected ) client.send(msg);
         });
 
@@ -46,11 +46,11 @@ describe("Sockets", function() {
     });
 
     afterEach(function() {
-        delete s;
-        delete a;
+        delete s;  // eslint-disable-line no-delete-var
+        delete a;  // eslint-disable-line no-delete-var
         server.close();
-        delete server;
-        delete client;
+        delete server; // eslint-disable-line no-delete-var
+        delete client; // eslint-disable-line no-delete-var
     });
 
     it("Can subscribe", function(done) {
@@ -86,7 +86,7 @@ describe("Sockets", function() {
             while ( sock_ref.readyState !== "open" ) await wait(1);
             s.subscribe("path1.a.data");
             while ( a._subscriptions.length < 1 ) await wait(1);
-            s.detach("path1.a")
+            s.detach("path1.a");
             s.attach("path1.a",new Entangld());
             await wait(5); // set messages clear
             if ( a._subscriptions.length !== 0 ) done(new Error("Subscription never removed"));
@@ -102,7 +102,7 @@ describe("Sockets", function() {
             s.subscribe("path1.a.data");
             while ( a._subscriptions.length < 1 ) await wait(1);
             client.disconnect(); // kill the socket
-            s.detach("path1.a")
+            s.detach("path1.a");
             s.attach("path1.a",new Entangld());
             await wait(5); // set messages clear
             if ( a._subscriptions.length !== 1 ) done(new Error("Subscription was removed!?"));
@@ -128,8 +128,8 @@ describe("Sockets", function() {
             client = new sockhop.client({
                 address : "localhost",
                 port : 9876
-            })
-            client.on("receive", (o, meta) => { console.log("c.r",o); a.receive(o, client) });
+            });
+            client.on("receive", (o) => { _log("c.r",o); a.receive(o, client); });
             client.connect();
             while ( !sock_ref ) await wait(1);
             while ( sock_ref.readyState !== "open" ) await wait(1);
