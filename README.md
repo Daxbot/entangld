@@ -179,6 +179,15 @@ If these two issues can be resolved at some point, _deref_mode will probably be 
 ## Classes
 
 <dl>
+<dt><a href="#Entangld">Entangld</a> ⇐ <code>EventEmitter</code></dt>
+<dd><p>Synchronized Event Store</p>
+</dd>
+<dt><a href="#EntangldError">EntangldError</a></dt>
+<dd><p>Error class for Entangld.</p>
+</dd>
+<dt><a href="#RPCError">RPCError</a></dt>
+<dd><p>Remote Error class for Entangld.</p>
+</dd>
 <dt><a href="#Entangld_Message">Entangld_Message</a></dt>
 <dd><p>Message class for Entangld.</p>
 <p>These messages are used for executing datastore operations between
@@ -204,17 +213,365 @@ callback functions to be trigger properly, and for unsubscribe messages to
 propogate both directions. <code>set</code>/<code>push</code> messages do not use the <code>.uuid</code> attribute
 since they require no response.</p>
 </dd>
-<dt><a href="#EntangldError">EntangldError</a></dt>
-<dd><p>Error class for Entangld.</p>
-</dd>
 <dt><a href="#Subscription">Subscription</a></dt>
 <dd><p>A datastore subscription object</p>
 </dd>
-<dt><a href="#Entangld">Entangld</a> ⇐ <code>EventEmitter</code></dt>
-<dd><p>Synchronized Event Store</p>
-</dd>
 </dl>
 
+<a name="Entangld"></a>
+
+## Entangld ⇐ <code>EventEmitter</code>
+Synchronized Event Store
+
+**Kind**: global class  
+**Extends**: <code>EventEmitter</code>  
+
+* [Entangld](#Entangld) ⇐ <code>EventEmitter</code>
+    * [.namespaces](#Entangld+namespaces) ⇒ <code>array</code>
+    * [.subscriptions](#Entangld+subscriptions) ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
+    * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
+    * [.attach(namespace, obj)](#Entangld+attach)
+    * [.detach([namespace], [obj])](#Entangld+detach) ⇒ <code>boolean</code>
+    * [.transmit(func)](#Entangld+transmit)
+    * [.receive(msg, obj)](#Entangld+receive)
+    * [.push(path, data, [limit])](#Entangld+push)
+    * [.set(path, data, [operation_type], [params])](#Entangld+set)
+    * [.set_rpc(path, func, opts)](#Entangld+set_rpc)
+    * [.set_rpc_class(object, key_description_pairs, opts)](#Entangld+set_rpc_class)
+    * [.call_rpc(path, [args])](#Entangld+call_rpc) ⇒ <code>Promise</code>
+    * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
+    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
+    * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
+    * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
+    * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
+
+<a name="Entangld+namespaces"></a>
+
+### entangld.namespaces ⇒ <code>array</code>
+Get namespaces
+
+**Kind**: instance property of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>array</code> - namespaces - an array of attached namespaces  
+**Read only**: true  
+<a name="Entangld+subscriptions"></a>
+
+### entangld.subscriptions ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
+Get list of subscriptions associated with this object
+
+Note, this will include `head`, `terminal` and `pass through` subscriptions,
+which can be checked using getter methods of the subscription object.
+
+**Kind**: instance property of [<code>Entangld</code>](#Entangld)  
+**Returns**: [<code>Array.&lt;Subscription&gt;</code>](#Subscription) - array of Subscriptions associated with this object  
+**Read only**: true  
+<a name="Entangld+namespace"></a>
+
+### entangld.namespace() ⇒ <code>string</code>
+Get namespace for a store
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>string</code> - namespace for the given store  
+**Read only**: true  
+<a name="Entangld+attach"></a>
+
+### entangld.attach(namespace, obj)
+Attach a namespace and a store
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if namespace/obj is null or empty.
+- [<code>EntangldError</code>](#EntangldError) if you try to attach to the same namespace twice.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| namespace | <code>string</code> | a namespace for this store. |
+| obj | <code>object</code> | an object that will be sent along with "transmit" callbacks when we need something from this store. |
+
+<a name="Entangld+detach"></a>
+
+### entangld.detach([namespace], [obj]) ⇒ <code>boolean</code>
+Detach a namespace / obj pair.
+
+If you only pass a namespace or a store, it will find the missing item
+before detaching.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>boolean</code> - true if the element existed and was removed.  
+**Throws**:
+
+- [<code>EntangldError</code>](#EntangldError) Error will be thrown if you don't pass at least
+one parameter.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| [namespace] | <code>string</code> | the namespace. |
+| [obj] | <code>object</code> | the store object. |
+
+<a name="Entangld+transmit"></a>
+
+### entangld.transmit(func)
+Transmit
+
+Specify a callback to be used so we can transmit data to another store.
+Callback will be passed (message, obj) where 'message' is an
+Entangld_Message object and obj is the object provided by attach().
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if func is not a function.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| func | <code>function</code> | the callback function. |
+
+<a name="Entangld+receive"></a>
+
+### entangld.receive(msg, obj)
+Receive
+
+Call this function with the data that was sent via the transmit()
+callback.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>ReferenceError</code> if event object was not provided.
+- [<code>EntangldError</code>](#EntangldError) if an unknown message type was received.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| msg | [<code>Entangld\_Message</code>](#Entangld_Message) | the message to process. |
+| obj | <code>object</code> | the attach() object where the message originted. |
+
+<a name="Entangld+push"></a>
+
+### entangld.push(path, data, [limit])
+Push an object into an array in the store.
+
+Convenience method for set(path, o, "push").
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to set (like "system.fan.voltage"). |
+| data | <code>object</code> |  | the object or function you want to store at path. |
+| [limit] | <code>number</code> | <code></code> | maximum size of the array. Older entries will be removed until the array size is less than or equal to limit. |
+
+<a name="Entangld+set"></a>
+
+### entangld.set(path, data, [operation_type], [params])
+Set an object into the store
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to set (like "system.fan.voltage"). |
+| data | <code>object</code> |  | the object or function you want to store at path. |
+| [operation_type] | <code>string</code> | <code>&quot;\&quot;set\&quot;&quot;</code> | whether to set or push the new data (push only works if the data item exists and is an array). |
+| [params] | <code>object</code> |  | additional parameters. |
+
+<a name="Entangld+set_rpc"></a>
+
+### entangld.set\_rpc(path, func, opts)
+Set a function as an RPC in the datastore
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to set (like "system.fan.voltage"). |
+| func | <code>function</code> |  | the function you want to store at path. |
+| opts | <code>object</code> |  |  |
+| [opts.description] | <code>string</code> | <code>null</code> | description for the function |
+| [opts.function_string] | <code>string</code> | <code>null</code> | optional string of function source code to pass to parameter_parser |
+
+<a name="Entangld+set_rpc_class"></a>
+
+### entangld.set\_rpc\_class(object, key_description_pairs, opts)
+Set a class instance as an RPC object in the datastore
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| object | <code>\*</code> |  | The object to attach |
+| key_description_pairs | <code>Array</code> |  | An array of key, description pairs |
+| opts | <code>object</code> |  |  |
+| [opts.description] | <code>string</code> | <code>null</code> | description for the function |
+| [opts.function_string] | <code>string</code> | <code>null</code> | optional string of function source code to pass to parameter_parser |
+
+<a name="Entangld+call_rpc"></a>
+
+### entangld.call\_rpc(path, [args]) ⇒ <code>Promise</code>
+Call an RPC procedure in the datastore
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>Promise</code> - promise resolving to return value of the rpc  
+**Throws**:
+
+- [<code>RPCError</code>](#RPCError) if the rpc call experienced an error
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to query (like "system.voltage"). |
+| [args] | <code>Array</code> | <code>[]</code> | the arguments to pass to the RPC. |
+
+<a name="Entangld+get"></a>
+
+### entangld.get(path, [params]) ⇒ <code>Promise</code>
+Get an object from the store.
+
+Note: using max_depth, especially large max_depth, involves a lot of
+recursion and may be expensive.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>Promise</code> - promise resolving to the object at that path.  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| path | <code>string</code> | the path to query (like "system.voltage"). |
+| [params] | <code>object</code> | the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode). |
+
+<a name="Entangld+subscribe"></a>
+
+### entangld.subscribe(path, func, [every]) ⇒ <code>uuidv4</code>
+Subscribe to change events for a path
+
+If objects at or below this path change, you will get a callback
+
+Subscriptions to keys within attach()ed stores are remote subscriptions.
+If several stores are attached in some kind of arrangement, a given key
+may actually traverse multiple stores!  Since each store only knows its
+immediate neighbors - and has no introspection into those neighbors - each
+store is only able to keeps track of the neighbor on each side with
+respect to a particular path and has no knowledge of the eventual
+endpoints.  This means that subscribing across several datstores is accomplished
+by daisy-chaining 2-way subscriptions across each datastore interface.
+
+For example, let's suppose capital letters represent Entangld stores and
+lowercase letters are actual objects.  Then  the path "A.B.c.d.E.F.g.h"
+will represent a subscription that traverses four Entangld stores.
+From the point of view of a store in the middle - say, E - the "upstream"
+is B and the "downstream" is F.
+
+Each store involved keeps track of any subscriptions with which it is
+involved.  It tracks the upstream and downstream, and the uuid of the
+subscription.  The uuid is the same across all stores for a given
+subscription.  For a particular store, the upstream is null if it is the
+original link in the chain (called the `head`), and the downstream is
+null if this store owns the endpoint value (called the `tail`). Any
+subscription which is not the head of a chain is called a `pass through`
+subscription, because it exist only to pass `event` messages back up the
+chain to the head (where the user-provided callback function exists).
+subscriptions can be checked to see if they are `pass through` type via
+the getter `sub.is_pass_through`.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>uuidv4</code> - - the uuid of the subscription  
+**Throws**:
+
+- <code>TypeError</code> if path is not a string.
+
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| path | <code>string</code> |  | the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*") |
+| func | <code>function</code> |  | the callback - will be of the form (path, value). |
+| [every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
+
+<a name="Entangld+subscribed_to"></a>
+
+### entangld.subscribed\_to(subscription) ⇒ <code>Boolean</code>
+Check for subscription
+
+Are we subscribed to a particular remote path?
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>Boolean</code> - true if we are subscribed.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| subscription | <code>String</code> | the subscription to check for. |
+
+<a name="Entangld+unsubscribe"></a>
+
+### entangld.unsubscribe(path_or_uuid) ⇒ <code>number</code>
+Unubscribe to change events for a given path or uuid.
+
+Caution - if a path is provided, _all_ events belonging to you with that
+path will be deleted, so if you have multiple subscriptions on a single path,
+and only want one of them to be removed, you must provide the uuid instead.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>number</code> - count of subscriptions removed.  
+**Throws**:
+
+- [<code>EntangldError</code>](#EntangldError) if no subscriptions were found.
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| path_or_uuid | <code>String</code> \| <code>uuidv4</code> | the path (or uuid) to unwatch. |
+
+<a name="Entangld+unsubscribe_tree"></a>
+
+### entangld.unsubscribe\_tree(path)
+Unsubscribe tree.
+
+Remove any subscriptions that are beneath a path.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Throws**:
+
+- [<code>EntangldError</code>](#EntangldError) error if there are stores we cannot detach
+(i.e. they belong to someone else / upstream != null)
+
+
+| Param | Type | Description |
+| --- | --- | --- |
+| path | <code>string</code> | the tree to unwatch. |
+
+<a name="EntangldError"></a>
+
+## EntangldError
+Error class for Entangld.
+
+**Kind**: global class  
+<a name="RPCError"></a>
+
+## RPCError
+Remote Error class for Entangld.
+
+**Kind**: global class  
 <a name="Entangld_Message"></a>
 
 ## Entangld\_Message
@@ -335,12 +692,6 @@ Create an unsubscribe message for a subscription uuid
 | --- | --- | --- |
 | uuid | <code>String</code> | the subscription uuid |
 
-<a name="EntangldError"></a>
-
-## EntangldError
-Error class for Entangld.
-
-**Kind**: global class  
 <a name="Subscription"></a>
 
 ## Subscription
@@ -535,290 +886,6 @@ the callback function is excluded.
 
 **Kind**: instance method of [<code>Subscription</code>](#Subscription)  
 **Returns**: [<code>Subscription</code>](#Subscription) - a copy of this subscription object  
-<a name="Entangld"></a>
-
-## Entangld ⇐ <code>EventEmitter</code>
-Synchronized Event Store
-
-**Kind**: global class  
-**Extends**: <code>EventEmitter</code>  
-
-* [Entangld](#Entangld) ⇐ <code>EventEmitter</code>
-    * [.namespaces](#Entangld+namespaces) ⇒ <code>array</code>
-    * [.subscriptions](#Entangld+subscriptions) ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
-    * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
-    * [.attach(namespace, obj)](#Entangld+attach)
-    * [.detach([namespace], [obj])](#Entangld+detach) ⇒ <code>boolean</code>
-    * [.transmit(func)](#Entangld+transmit)
-    * [.receive(msg, obj)](#Entangld+receive)
-    * [.push(path, data, [limit])](#Entangld+push)
-    * [.set(path, data, [operation_type], [params])](#Entangld+set)
-    * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
-    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
-    * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
-    * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
-    * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
-
-<a name="Entangld+namespaces"></a>
-
-### entangld.namespaces ⇒ <code>array</code>
-Get namespaces
-
-**Kind**: instance property of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>array</code> - namespaces - an array of attached namespaces  
-**Read only**: true  
-<a name="Entangld+subscriptions"></a>
-
-### entangld.subscriptions ⇒ [<code>Array.&lt;Subscription&gt;</code>](#Subscription)
-Get list of subscriptions associated with this object
-
-Note, this will include `head`, `terminal` and `pass through` subscriptions,
-which can be checked using getter methods of the subscription object.
-
-**Kind**: instance property of [<code>Entangld</code>](#Entangld)  
-**Returns**: [<code>Array.&lt;Subscription&gt;</code>](#Subscription) - array of Subscriptions associated with this object  
-**Read only**: true  
-<a name="Entangld+namespace"></a>
-
-### entangld.namespace() ⇒ <code>string</code>
-Get namespace for a store
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>string</code> - namespace for the given store  
-**Read only**: true  
-<a name="Entangld+attach"></a>
-
-### entangld.attach(namespace, obj)
-Attach a namespace and a store
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- <code>TypeError</code> if namespace/obj is null or empty.
-- [<code>EntangldError</code>](#EntangldError) if you try to attach to the same namespace twice.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| namespace | <code>string</code> | a namespace for this store. |
-| obj | <code>object</code> | an object that will be sent along with "transmit" callbacks when we need something from this store. |
-
-<a name="Entangld+detach"></a>
-
-### entangld.detach([namespace], [obj]) ⇒ <code>boolean</code>
-Detach a namespace / obj pair.
-
-If you only pass a namespace or a store, it will find the missing item
-before detaching.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>boolean</code> - true if the element existed and was removed.  
-**Throws**:
-
-- [<code>EntangldError</code>](#EntangldError) Error will be thrown if you don't pass at least
-one parameter.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| [namespace] | <code>string</code> | the namespace. |
-| [obj] | <code>object</code> | the store object. |
-
-<a name="Entangld+transmit"></a>
-
-### entangld.transmit(func)
-Transmit
-
-Specify a callback to be used so we can transmit data to another store.
-Callback will be passed (message, obj) where 'message' is an
-Entangld_Message object and obj is the object provided by attach().
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- <code>TypeError</code> if func is not a function.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| func | <code>function</code> | the callback function. |
-
-<a name="Entangld+receive"></a>
-
-### entangld.receive(msg, obj)
-Receive
-
-Call this function with the data that was sent via the transmit()
-callback.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- <code>ReferenceError</code> if event object was not provided.
-- [<code>EntangldError</code>](#EntangldError) if an unknown message type was received.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| msg | [<code>Entangld\_Message</code>](#Entangld_Message) | the message to process. |
-| obj | <code>object</code> | the attach() object where the message originted. |
-
-<a name="Entangld+push"></a>
-
-### entangld.push(path, data, [limit])
-Push an object into an array in the store.
-
-Convenience method for set(path, o, "push").
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- <code>TypeError</code> if path is not a string.
-
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| path | <code>string</code> |  | the path to set (like "system.fan.voltage"). |
-| data | <code>object</code> |  | the object or function you want to store at path. |
-| [limit] | <code>number</code> | <code></code> | maximum size of the array. Older entries will be removed until the array size is less than or equal to limit. |
-
-<a name="Entangld+set"></a>
-
-### entangld.set(path, data, [operation_type], [params])
-Set an object into the store
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- <code>TypeError</code> if path is not a string.
-
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| path | <code>string</code> |  | the path to set (like "system.fan.voltage"). |
-| data | <code>object</code> |  | the object or function you want to store at path. |
-| [operation_type] | <code>string</code> | <code>&quot;\&quot;set\&quot;&quot;</code> | whether to set or push the new data (push only works if the data item exists and is an array). |
-| [params] | <code>object</code> |  | additional parameters. |
-
-<a name="Entangld+get"></a>
-
-### entangld.get(path, [params]) ⇒ <code>Promise</code>
-Get an object from the store.
-
-Note: using max_depth, especially large max_depth, involves a lot of
-recursion and may be expensive.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>Promise</code> - promise resolving to the object at that path.  
-**Throws**:
-
-- <code>TypeError</code> if path is not a string.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| path | <code>string</code> | the path to query (like "system.voltage"). |
-| [params] | <code>object</code> | the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode). |
-
-<a name="Entangld+subscribe"></a>
-
-### entangld.subscribe(path, func, [every]) ⇒ <code>uuidv4</code>
-Subscribe to change events for a path
-
-If objects at or below this path change, you will get a callback
-
-Subscriptions to keys within attach()ed stores are remote subscriptions.
-If several stores are attached in some kind of arrangement, a given key
-may actually traverse multiple stores!  Since each store only knows its
-immediate neighbors - and has no introspection into those neighbors - each
-store is only able to keeps track of the neighbor on each side with
-respect to a particular path and has no knowledge of the eventual
-endpoints.  This means that subscribing across several datstores is accomplished
-by daisy-chaining 2-way subscriptions across each datastore interface.
-
-For example, let's suppose capital letters represent Entangld stores and
-lowercase letters are actual objects.  Then  the path "A.B.c.d.E.F.g.h"
-will represent a subscription that traverses four Entangld stores.
-From the point of view of a store in the middle - say, E - the "upstream"
-is B and the "downstream" is F.
-
-Each store involved keeps track of any subscriptions with which it is
-involved.  It tracks the upstream and downstream, and the uuid of the
-subscription.  The uuid is the same across all stores for a given
-subscription.  For a particular store, the upstream is null if it is the
-original link in the chain (called the `head`), and the downstream is
-null if this store owns the endpoint value (called the `tail`). Any
-subscription which is not the head of a chain is called a `pass through`
-subscription, because it exist only to pass `event` messages back up the
-chain to the head (where the user-provided callback function exists).
-subscriptions can be checked to see if they are `pass through` type via
-the getter `sub.is_pass_through`.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>uuidv4</code> - - the uuid of the subscription  
-**Throws**:
-
-- <code>TypeError</code> if path is not a string.
-
-
-| Param | Type | Default | Description |
-| --- | --- | --- | --- |
-| path | <code>string</code> |  | the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*") |
-| func | <code>function</code> |  | the callback - will be of the form (path, value). |
-| [every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
-
-<a name="Entangld+subscribed_to"></a>
-
-### entangld.subscribed\_to(subscription) ⇒ <code>Boolean</code>
-Check for subscription
-
-Are we subscribed to a particular remote path?
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>Boolean</code> - true if we are subscribed.  
-
-| Param | Type | Description |
-| --- | --- | --- |
-| subscription | <code>String</code> | the subscription to check for. |
-
-<a name="Entangld+unsubscribe"></a>
-
-### entangld.unsubscribe(path_or_uuid) ⇒ <code>number</code>
-Unubscribe to change events for a given path or uuid.
-
-Caution - if a path is provided, _all_ events belonging to you with that
-path will be deleted, so if you have multiple subscriptions on a single path,
-and only want one of them to be removed, you must provide the uuid instead.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Returns**: <code>number</code> - count of subscriptions removed.  
-**Throws**:
-
-- [<code>EntangldError</code>](#EntangldError) if no subscriptions were found.
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| path_or_uuid | <code>String</code> \| <code>uuidv4</code> | the path (or uuid) to unwatch. |
-
-<a name="Entangld+unsubscribe_tree"></a>
-
-### entangld.unsubscribe\_tree(path)
-Unsubscribe tree.
-
-Remove any subscriptions that are beneath a path.
-
-**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
-**Throws**:
-
-- [<code>EntangldError</code>](#EntangldError) error if there are stores we cannot detach
-(i.e. they belong to someone else / upstream != null)
-
-
-| Param | Type | Description |
-| --- | --- | --- |
-| path | <code>string</code> | the tree to unwatch. |
-
 
 ## TODO
 - Make sure incoming values request store doesn't build up
