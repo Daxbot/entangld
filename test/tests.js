@@ -1,4 +1,5 @@
-var Entangld=require("../index.js");
+var Entangld=require("../lib/Datastore.js");
+var { partial_copy, dereferenced_copy } = require("../lib/utils.js");
 var assert=require("assert");
 
 
@@ -6,7 +7,7 @@ describe("Internal functions",()=>{
 
 	let e=new Entangld();
 
-	describe("_partial_copy",()=>{
+	describe("partial_copy",()=>{
 
 		// Create a data tree
 		let v={
@@ -29,42 +30,42 @@ describe("Internal functions",()=>{
 
 		it("returns original object when depth is unspecified",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v), v);
+			assert.deepStrictEqual(partial_copy(v), v);
 
 		});
 
 		it("max_depth==0",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v,0), {a: {}, d:{}, h:4});
+			assert.deepStrictEqual(partial_copy(v,0), {a: {}, d:{}, h:4});
 
 		});
 
 		it("max_depth==1",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v,1), {a: { b: {} }, d:{ e: [] }, h:4});
+			assert.deepStrictEqual(partial_copy(v,1), {a: { b: {} }, d:{ e: [] }, h:4});
 
 		});
 
 		it("max_depth==2",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v,2), {a: { b: { c: 6 } }, d:{ e: [ {} ] }, h:4 });
+			assert.deepStrictEqual(partial_copy(v,2), {a: { b: { c: 6 } }, d:{ e: [ {} ] }, h:4 });
 
 		});
 
 		it("max_depth==3",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v,3), {a: { b: { c: 6 } }, d:{ e: [ { f: {} } ] }, h:4 });
+			assert.deepStrictEqual(partial_copy(v,3), {a: { b: { c: 6 } }, d:{ e: [ { f: {} } ] }, h:4 });
 
 		});
 
 		it("max_depth==4",()=>{
 
-			assert.deepStrictEqual(e._partial_copy(v,4), {a: { b: { c: 6 } }, d:{ e: [ { f: { g: 7 } } ] }, h:4 });
+			assert.deepStrictEqual(partial_copy(v,4), {a: { b: { c: 6 } }, d:{ e: [ { f: { g: 7 } } ] }, h:4 });
 
 		});
 	});
 
-	describe("_dereferenced_copy",()=>{
+	describe("dereferenced_copy",()=>{
 
 		let o={
 
@@ -82,7 +83,7 @@ describe("Internal functions",()=>{
 
 		it("convert embedded functions to values",()=>{
 
-			return e._dereferenced_copy(o).then((val)=>{
+			return dereferenced_copy(o).then((val)=>{
 
 				assert.deepStrictEqual(val,
 					{
@@ -106,7 +107,7 @@ describe("Internal functions",()=>{
 
 		it("undefined passes through",()=>{
 
-			return e._dereferenced_copy(undefined).then((val)=>{
+			return dereferenced_copy(undefined).then((val)=>{
 
 				assert.strictEqual(val, undefined);
 				return Promise.resolve;
