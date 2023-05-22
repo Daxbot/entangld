@@ -12,7 +12,7 @@ Basic use:
     e.get("number.six").then((val)=>{});     // val==6
 
     // Functions as values
-    e._deref_mode=true;
+    e._deref_mode=true;    // Or pass to constructor: new Entangld({ deref_mode: true });
     e.set("number.seven",()=>{ return 7;});
     e.get("number").then((val)=>{});         // val => { six:6, seven, 7}
 
