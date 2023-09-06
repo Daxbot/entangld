@@ -2,6 +2,10 @@
 
 Synchronized key-value stores with RPCs and pub/sub events.  Works over sockets (try it with [Sockhop](https://www.npmjs.com/package/sockhop "Sockhop on NPM")!)
 
+## Tests
+
+![example workflow](https://github.com/Daxbot/entangld/actions/workflows/mocha-tests.yml/badge.svg)
+
 ## Examples
 Basic use:
 ```js

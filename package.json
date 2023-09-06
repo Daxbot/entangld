@@ -1,6 +1,6 @@
 {
   "name": "entangld",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
   "jshintConfig": {
