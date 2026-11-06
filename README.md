@@ -170,6 +170,7 @@ This is because we would have to perform recursive child queries to show you a c
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
 - A ```.get()``` or ```.call_rpc()``` waits forever if no reply arrives, for example if the link drops mid-request.  Pass ```{ timeout_ms }``` as the third argument and it will instead reject with an ```EntangldTimeoutError```.  This works for remote paths and local functions, and is off unless you ask for it.  It stops the wait, not the remote work, so an RPC which timed out may still have run.  Take care before retrying one.
 - To give up on a request for any other reason, pass ```{ signal }``` with an AbortSignal, as in ```.get(path, undefined, { signal })```.  An abort rejects with ```signal.reason```.  Like a timeout, it stops the wait, not the remote work.  ```.subscribe()``` takes a signal too, as ```.subscribe(path, callback, { signal })```, and unsubscribes when it aborts.  It also takes ```{ every }``` there, so you don't need to pass a placeholder.
+- Most code will want either a signal or an explicit ```.unsubscribe()```, not both.  ```.unsubscribe()``` throws if the subscription has already ended, including when its signal aborted, even if that was before ```.subscribe()``` was called.  If you do mix them, check ```signal.aborted``` first or catch the error.
 - If a function you ```.set()``` throws or rejects when called from a remote store, the error can't be sent back and the caller never gets a reply.  Use ```.set_rpc()``` and ```.call_rpc()``` for functions which can fail.
 - As of version 1.4.0, you may subscribe() to a local event.  This should probably be eventually replaced with native events.  In other words, instead of ```.subscribe("a.b.c", callback)``` we should use ```.on("path.a.b.c", callback)```
 
@@ -525,7 +526,7 @@ the getter `sub.is_pass_through`.
 | func | <code>function</code> |  | the callback - will be of the form (path, value). |
 | [options] | <code>number</code> \| <code>null</code> \| <code>object</code> | <code></code> | an options object, or the value of options.every. |
 | [options.every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
-| [options.signal] | <code>AbortSignal</code> |  | unsubscribe when this aborts. If it has already aborted, no subscription is created. The uuid is still returned, as it would be for a subscription which has since ended. |
+| [options.signal] | <code>AbortSignal</code> |  | unsubscribe when this aborts. If it has already aborted, no subscription is created. The uuid is still returned, as it would be for a subscription which has since ended. Calling unsubscribe() after an abort throws, see unsubscribe(). |
 
 <a name="Entangld+subscribed_to"></a>
 
@@ -549,6 +550,11 @@ Unubscribe to change events for a given path or uuid.
 Caution - if a path is provided, _all_ events belonging to you with that
 path will be deleted, so if you have multiple subscriptions on a single path,
 and only want one of them to be removed, you must provide the uuid instead.
+
+Caution - this throws if the subscription has already ended. That includes
+a subscription ended by its signal, or a signal which had already aborted
+when subscribe() was called. If you mix signals with explicit unsubscribes,
+check `signal.aborted` first or catch the error.
 
 **Kind**: instance method of [<code>Entangld</code>](#Entangld)  
 **Returns**: <code>number</code> - count of subscriptions removed.  

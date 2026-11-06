@@ -1,7 +1,7 @@
 const assert = require("assert");
 const { getEventListeners } = require("events");
 const Entangld = require("../lib/Datastore.js");
-const { EntangldTimeoutError } = require("../lib/error.js");
+const { EntangldError, EntangldTimeoutError } = require("../lib/error.js");
 
 const listeners = (signal) => getEventListeners(signal, "abort").length;
 
@@ -315,6 +315,24 @@ describe("Signals", () => {
             assert.strictEqual(typeof uuid, "string");
             assert.strictEqual(a._subscriptions.length, 0);
             assert.strictEqual(sent.length, before);
+        });
+
+        it("unsubscribe throws after an abort", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+
+            const uuid = a.subscribe("value", () => { }, { signal: controller.signal });
+            controller.abort();
+
+            assert.throws(() => a.unsubscribe(uuid), EntangldError);
+        });
+
+        it("unsubscribe throws if the signal had already aborted", () => {
+            const a = new Entangld();
+
+            const uuid = a.subscribe("value", () => { }, { signal: AbortSignal.abort() });
+
+            assert.throws(() => a.unsubscribe(uuid), EntangldError);
         });
 
         it("doesn't throw if aborted after unsubscribing", () => {
