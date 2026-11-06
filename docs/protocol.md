@@ -2,7 +2,8 @@
 
 > **Draft.** This describes what `lib/` does today, and it's incomplete. Where this document and the code disagree, the
 > code wins. The format has no version number yet, and nothing here is a compatibility promise. Open questions are marked
-> **TODO**. Changes we're considering are at the [end](#changes-under-consideration).
+> **TODO**. The [preferred direction](#proposed-handshakes-and-versioning) and other
+> [changes we're considering](#changes-under-consideration) are at the end.
 
 ## Overview
 
@@ -124,30 +125,176 @@ and aborting a subscription sends an ordinary `unsubscribe`.
 **TODO:** cover `attach`, `detach`, and what happens to pending requests when a link drops. `detach()` leaves them in
 `_requests` today.
 
+## Proposed: handshakes and versioning
+
+**Not built or adopted.** This is the preferred direction, not a description of what the library does.
+
+Today a store can't tell what a peer supports, and a new message type raises an error on any store which hasn't upgraded.
+This proposal lets stores find out, and sets rules so that later changes need as few stores upgraded as possible.
+
+### Negotiating a link
+
+The application calls `negotiate()` when a link comes up, because only it knows when that happens. `attach()` can't do
+this: some stores call it once at startup before any socket connects, and others call it per connection.
+
+```js
+// A client which reconnects by itself
+this.cortex.on("connect", () => {
+    this.datastore.negotiate(this.cortex, { timeout_ms: 5000 });
+});
+
+// A server, with a new socket per connection
+_serverOnConnect(socket) {
+    this.datastore.attach(`chips.${id}`, socket);
+    this.datastore.negotiate(socket, { timeout_ms: 5000 });
+}
+```
+
+Asking lazily, on first need, was rejected. `set` and `subscribe` are synchronous so they can't wait for an answer, and a
+lost reply would stall every caller waiting on it. It would also still need a hook, to forget a peer on disconnect.
+
+Negotiation is per link, because messages already work hop by hop. It's an ordinary `get` of `@entangld.protocol` on the
+peer, and the answer is a protocol number and a list of features, both separate from the npm version:
+
+```json
+{ "protocol": 1, "features": [ "cancel", "error_reply" ] }
+```
+
+- **Old stores:** a `get` of an unknown path returns `undefined` on 2.6.0, with no error, so an old store can be asked
+  safely. No new message type is needed.
+- **Unknown means old:** a link counts as protocol 0 until it has an answer. A lost reply leaves it there, so nothing
+  new is sent to a store which may not understand it.
+- **Reconnects:** a peer can change across a reconnect, so `negotiate()` runs on every connect. A stale answer's worst
+  case should be an ignored message, once unknown messages are ignored.
+
+### Features upgrade existing calls
+
+Applications don't check feature lists or build messages. Once a link is negotiated, the library takes over. **A feature
+upgrades an existing call, and never needs its own code path**, so the same code works on old and new links.
+
+| Application code | With an old peer | With a peer which has the feature |
+| --- | --- | --- |
+| `controller.abort()` | Stops waiting | Also cancels the remote work |
+| `{ timeout_ms: 5000 }` | Local timer | Also sends the deadline along the chain |
+| `subscribe(path, callback)` | Today's events | Compact events |
+| `get` on a function which fails | Waits for its limit | Rejects with the real error |
+| `get(path, undefined, { strict: true })` | Behaves as `get` does today | Rejects if the path isn't found |
+
+For the times an application wants to know, there's one checker. It takes a path, so the caller doesn't need to know
+which link that means:
+
+```js
+store.supports("b.slow_job", "cancel");
+```
+
+It can only answer for the immediate neighbour, so `true` doesn't promise that a store further along the chain has the
+feature. Avoid methods per feature, like `can_cancel()`.
+
+### Reserved names
+
+Any path segment starting with `@` is reserved, at any level. New stores refuse to `set` or `attach` these names, so they
+never appear in the data, in `get("")`, or in wildcards. `$` was rejected because shells expand it, so
+`--get bots.x.$entangld.protocol` silently loses the name.
+
+Only one reserved namespace is used to start, `@entangld`, at the root of a store:
+
+```js
+store.get("b.@entangld.protocol");
+```
+
+Suffixes like `a.b.c.@schema` are reserved but not used. Asked this on 2.6.0, a store runs any function at `a.b.c`, fails
+navigating the result, and never replies. Negotiation doesn't make that safe, because it only describes the neighbour,
+and a path may be owned several stores away. They could become a shorthand once old stores are gone.
+
+### Queries
+
+A root query has to reach the store which owns a path, and callers usually don't know where one store ends and the next
+begins. So the library does it, and each store peels off one hop:
+
+```js
+store.describe("b.c.motor.start");
+```
+
+```json
+{ "type": "get", "path": "@entangld.describe", "value": { "path": "c.motor.start" }, "uuid": "..." }
+```
+
+B sees that `c` is an attached store, and forwards the query to C with `motor.start`. An old store in the middle answers
+`undefined`, so the query stops there, safely. This first upgrade needs every store on the way to be new. The rules below
+are there so that later ones don't.
+
+**A query a store understands never answers `undefined`.** That leaves `undefined` to mean only that a store on the way
+doesn't support the query, so a caller can tell the two apart.
+
+`describe` looks at a path without calling it:
+
+```js
+await store.describe("b.c.motor.start");
+
+// { exists: true, kind: "rpc" }
+// { exists: false }
+// { exists: null, kind: "function" }     Beneath a function, so it can't tell without calling it
+```
+
+`store.exists(path)` is a thin wrapper around this, for the common case. It returns `null` when it can't tell, including
+for a store which doesn't support the query.
+
+### Strict reads
+
+`get` returns `undefined` for a missing path, a removed path, and a function which returned `undefined`, and the replies
+are identical. A `value` reply gains a field saying whether the path was found:
+
+```json
+{ "type": "value", "path": "nope", "found": false, "uuid": "..." }
+```
+
+```js
+await store.get("b.nope");                                  // undefined, as it is today
+await store.get("b.nope", undefined, { strict: true });     // Rejects with an EntangldNotFoundError
+await store.get("b.empty_fn", undefined, { strict: true }); // undefined, because it was found
+```
+
+This takes one round trip and can't go stale, unlike calling `exists` before `get`, so `exists` is for asking about a
+path and `strict` is for reading one. An old store sends no `found`, so `strict` can't tell, and behaves as `get` does
+today.
+
+Wrinkle: a store forwarding a `get` rebuilds the reply from the value alone, because `_requests` only passes on
+`msg.value`, so `found` would be lost at each hop. Stores need to carry the whole reply, which is also what keeping
+unrecognised fields needs.
+
+`subscribe` doesn't take `strict`. Subscribing to a path before it exists is normal, and a subscription whose path
+appears later still works. It's also synchronous with no reply, so it has nothing to reject. To check first, call
+`describe`. Knowing that a subscription arrived is a different question, see
+[acknowledgements](#acknowledgements).
+
+### Forward compatibility
+
+**Only the stores which care about a change should need upgrading.** This release has to touch every store, so it should
+make that the last time where it can. Each store follows these rules from protocol 1 on:
+
+- **Route without interpreting.** A store forwards an `@entangld` query by its `path`, whether or not it recognises the
+  name. Only the store which answers needs to understand it.
+- **Don't answer what you don't know.** The store which owns the path answers `undefined` for an unknown name. Queries
+  it does know never answer `undefined`, so a caller can tell that it isn't supported.
+- **Keep what you don't recognise.** A store forwarding a message or a reply passes on fields it doesn't know.
+  `receive()` drops them today, by calling `get(msg.path, msg.value)`, and `_requests` only passes on `msg.value`.
+- **Ignore unknown message types.** `receive()` throws today. Ignoring them makes a stale negotiation harmless, at the
+  cost of hiding bugs which are loud today, so it may be worth emitting an event.
+- **Degrade, don't fail.** A feature a store lacks should make a call weaker, not break it.
+
+For example, a later `who_owns` query, where a store says whether it owns an endpoint or only passes it through, would
+need only the answering store to upgrade. Every store between would forward it without knowing what it means.
+
+**The limit:** this covers anything a store only needs to pass along. A feature which needs a store to act still needs
+that store upgraded. Cancelling and deadlines have to clear each store's pending request, and compact events change the
+encoding of one link, so those stop at the first old store, or only apply where both ends support them.
+
+**TODO:** decide what the protocol number means once features exist. It may only need to change for a breaking change.
+
 ## Changes under consideration
 
 Nothing here is decided or built. A change to the protocol is a good moment to commit to this document, and to make
-several of these at once. They're likely worth designing together, because most depend on versioning.
-
-### Versioning
-
-There's no version or capability exchange, so a store can't tell what a peer supports. Almost everything below needs
-this first.
-
-Wrinkles:
-
-- **Unknown message types throw.** A new message type raises an error on any store which hasn't upgraded, so we can't
-  send one until we know a peer supports it.
-- **There's no handshake.** The first message on a link is whatever the application sends, and the library doesn't own
-  the transport, so it can't tell when a link comes up. `attach()` is the likely place to start, but it sends nothing
-  today, so a peer doesn't know it happened.
-- **Mixed versions will be normal.** Separate processes often ship their own copy of the library, so stores on different
-  versions must keep working together.
-
-### Tolerating unknown messages
-
-Ignoring unknown types, or reporting them, would make every future change safer to roll out. It would also hide bugs
-which throw loudly today.
+several of these at once. Most depend on the [proposal above](#proposed-handshakes-and-versioning).
 
 ### Error replies
 
@@ -157,6 +304,8 @@ end the hang behind a raw `get`, and would let a store report that it gave up. A
 Wrinkle: `set_rpc` already has its own error format, so we'd need to decide whether the two merge.
 
 ### Cancelling remote work
+
+Applications would use this through `abort()`, not a new method, as [proposed](#features-upgrade-existing-calls).
 
 Today an RPC which timed out or was aborted may still finish, so a retry can run it twice. A new message could carry the
 abort down the chain, and let the function at the far end stop:
@@ -208,12 +357,27 @@ Wrinkles:
 
 `set`, `push` and `subscribe` have no reply, so a lost message goes unnoticed. A lost `subscribe` is the worst case,
 because the events simply never arrive. Acks would need an answer for what to do when one doesn't come, and they would
-add traffic to what is often a high-rate path, so they should probably be opt-in.
+add traffic to what is often a high-rate path, so they should probably be opt-in. For `subscribe`, this is a better fit
+than a strict mode, because what a caller wants to know is that the subscription arrived, not that the path exists yet.
+
+### Compact events
+
+An event for one number is 115 bytes of JSON, most of it the `path` and `uuid`. A short subscription id agreed for each
+link gets that to 15 bytes, as `[ 3, 12, 1.234567 ]`, with no schema. On a link which sends one path about ten times a
+second, that's a real saving. It only needs both ends of a link to support it.
+
+### Schemas
+
+`set_rpc` already returns usage text, which is a small version of this. A store could describe its endpoints, so a caller
+knows what to expect. Schemas should be optional descriptions, never enforced, because a store accepts any JSON and a
+schema can drift from what's really there.
+
+Packing messages from a schema isn't worth it. On the example above, binary with a schema gets to 11 bytes against 15 for
+compact events, and adds the risk of two ends disagreeing about a schema.
 
 ### Smaller improvements
 
-- **Message size:** `value` repeats the `path` the requester already knows, and `set` sends an empty `params`. Both add
-  up on high-rate links.
+- **`value` size:** `value` repeats the `path` the requester already knows, and `set` sends an empty `params`.
 - **`every: null`:** `subscribe` sends this explicitly, where other optional fields are left out.
 - **Transport guidance:** a recommended framing and example transport, so that a new port doesn't start from `lib/`.
 - **Conformance cases:** a shared set of message examples which any port can run, so that ports notice when they drift.
