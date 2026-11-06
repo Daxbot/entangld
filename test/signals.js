@@ -411,6 +411,160 @@ describe("Signals", () => {
         });
     });
 
+    describe("mixing abort and unsubscribe", () => {
+
+        // Count the unsubscribe messages store a sends
+        function counted_stores() {
+            const sent = [];
+            const { a, b } = linked_stores((msg) => {
+                sent.push(msg.type);
+                return true;
+            });
+            const unsubscribes = () => sent.filter(type => type === "unsubscribe").length;
+
+            return { a, b, unsubscribes };
+        }
+
+        it("checking signal.aborted skips the unsubscribe after an abort", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const { signal } = controller;
+
+            const uuid = a.subscribe("value", () => { }, { signal });
+            controller.abort();
+
+            assert.doesNotThrow(() => {
+                if (!signal.aborted) a.unsubscribe(uuid);
+            });
+            assert.strictEqual(a._subscriptions.length, 0);
+        });
+
+        it("checking signal.aborted still unsubscribes without an abort", () => {
+            const a = new Entangld();
+            const { signal } = new AbortController();
+            const seen = [];
+
+            const uuid = a.subscribe("value", (path, value) => seen.push(value), { signal });
+            if (!signal.aborted) a.unsubscribe(uuid);
+            a.set("value", 1);
+
+            assert.deepStrictEqual(seen, []);
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("the unsubscribe error can be caught after an abort", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const reached = [];
+
+            const uuid = a.subscribe("value", () => { }, { signal: controller.signal });
+            controller.abort();
+
+            try {
+                a.unsubscribe(uuid);
+                reached.push("returned");
+            } catch (err) {
+                assert(err instanceof EntangldError);
+                assert(err.message.includes(uuid));
+                reached.push("caught");
+            }
+
+            assert.deepStrictEqual(reached, ["caught"]);
+        });
+
+        it("unsubscribing by path throws after an abort", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+
+            a.subscribe("value", () => { }, { signal: controller.signal });
+            controller.abort();
+
+            assert.throws(() => a.unsubscribe("value"), EntangldError);
+        });
+
+        it("unsubscribing by path removes what the abort left", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const seen = [];
+
+            a.subscribe("value", () => seen.push("signal"), { signal: controller.signal });
+            a.subscribe("value", () => seen.push("plain"));
+            controller.abort();
+
+            assert.strictEqual(a.unsubscribe("value"), 1);
+            a.set("value", 1);
+
+            assert.deepStrictEqual(seen, []);
+        });
+
+        it("unsubscribing by path removes a signal's subscription too", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const { signal } = controller;
+
+            a.subscribe("value", () => { }, { signal });
+            a.subscribe("value", () => { });
+
+            assert.strictEqual(a.unsubscribe("value"), 2);
+            assert.strictEqual(listeners(signal), 0);
+            assert.doesNotThrow(() => controller.abort());
+        });
+
+        it("unsubscribing one leaves the others on a shared signal", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const { signal } = controller;
+            const seen = [];
+
+            const first = a.subscribe("one", () => seen.push("one"), { signal });
+            a.subscribe("two", () => seen.push("two"), { signal });
+
+            a.unsubscribe(first);
+            assert.strictEqual(listeners(signal), 1);
+            a.set("two", 1);
+            controller.abort();
+            a.set("two", 2);
+
+            assert.deepStrictEqual(seen, ["two"]);
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("tells a remote store once if unsubscribed before an abort", () => {
+            const { a, b, unsubscribes } = counted_stores();
+            const controller = new AbortController();
+
+            const uuid = a.subscribe("b.value", () => { }, { signal: controller.signal });
+            a.unsubscribe(uuid);
+            controller.abort();
+
+            assert.strictEqual(unsubscribes(), 1);
+            assert.strictEqual(b._subscriptions.length, 0);
+        });
+
+        it("tells a remote store once if aborted before unsubscribing", () => {
+            const { a, b, unsubscribes } = counted_stores();
+            const controller = new AbortController();
+
+            const uuid = a.subscribe("b.value", () => { }, { signal: controller.signal });
+            controller.abort();
+
+            assert.throws(() => a.unsubscribe(uuid), EntangldError);
+            assert.strictEqual(unsubscribes(), 1);
+            assert.strictEqual(b._subscriptions.length, 0);
+        });
+
+        it("a second abort changes nothing", () => {
+            const { a, unsubscribes } = counted_stores();
+            const controller = new AbortController();
+
+            a.subscribe("b.value", () => { }, { signal: controller.signal });
+            controller.abort();
+            controller.abort();
+
+            assert.strictEqual(unsubscribes(), 1);
+        });
+    });
+
     describe("call_rpc", () => {
 
         it("rejects with the reason when aborted", async () => {
