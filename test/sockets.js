@@ -122,7 +122,7 @@ describe("Sockets", function() {
             });
             while ( a._subscriptions.length < 1 ) await wait(1);
             client.disconnect(); // kill the socket
-            await await(5);
+            await wait(5);
             // Reconnect the client
             sock_ref = null;
             client = new sockhop.client({
@@ -134,6 +134,11 @@ describe("Sockets", function() {
             while ( !sock_ref ) await wait(1);
             while ( sock_ref.readyState !== "open" ) await wait(1);
 
+            // Wait for the resubscribe. Until it arrives, a only has the old
+            // subscription, which sends events to the dead client
+            const deadline = Date.now() + 1000;
+            while ( !a._subscriptions.some(sub => sub.upstream === client) && Date.now() < deadline ) await wait(1);
+
             if ( a._subscriptions.length !== 1 ) {
                 // a still has the old subscription from before the the socket
                 // was destroyed
@@ -141,7 +146,7 @@ describe("Sockets", function() {
                 return;
             }
             a.set("data",1); // Should trigger subscription, and call done
-            await wait(5);
+            while ( !flag && Date.now() < deadline ) await wait(1);
             if ( !flag ) done(new Error("Never got resubscribe from reconnection event"));
         });
     });
