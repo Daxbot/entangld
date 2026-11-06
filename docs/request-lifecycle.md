@@ -26,7 +26,7 @@ Wrinkles:
 
 - **It's a protocol change, and old peers throw.** `receive()` throws an `EntangldError` on an unknown message type, so
   sending `cancel` to a store which hasn't upgraded raises an error there. We'd need a way to know what a peer supports
-  first. There's no capability or version exchange today. `libraries/unix` would need updating too.
+  first. There's no capability or version exchange today.
 - **Middle stores need a new map.** Each hop creates its own uuid for a `get`, so `cancel` can't simply be forwarded. A
   store has to remember which incoming request (by uuid and sender) became which outgoing request, and clean that up on
   every outcome.
@@ -54,8 +54,8 @@ avoids clock skew between stores. This is how gRPC deadlines work.
 Wrinkles:
 
 - **Also a protocol change, but a gentler one.** `receive()` only reads the fields it knows, so an old peer should ignore
-  the extra field. It also won't enforce it or pass it on, so coverage stops at the first old store, silently.
-  `libraries/unix` would need updating to take part. Confirm all of this before relying on it.
+  the extra field. It also won't enforce it or pass it on, so coverage stops at the first old store, silently. Confirm
+  this before relying on it.
 - **A hop can't report that it gave up.** A `value` message has no way to carry an error, so a store which times out can
   only clean up and stay quiet. The caller then gets the timeout from its own timer. That's fine, but it means no store
   can say which hop failed.

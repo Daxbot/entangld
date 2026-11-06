@@ -1,3 +1,0 @@
-[submodule "libraries/unix/extern/json"]
-	path = libraries/unix/extern/json
-	url = https://github.com/nlohmann/json.git
