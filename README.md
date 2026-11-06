@@ -169,6 +169,7 @@ parent.get("child"); // Returns {"child" : "data"}
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
 - A ```.get()``` or ```.call_rpc()``` waits forever if no reply arrives, for example if the link drops mid-request.  Pass ```{ timeout_ms }``` as the third argument and it will instead reject with an ```EntangldTimeoutError```.  This works for remote paths and local functions, and is off unless you ask for it.  It stops the wait, not the remote work, so an RPC which timed out may still have run.  Take care before retrying one.
+- To give up on a request for any other reason, pass ```{ signal }``` with an AbortSignal, as in ```.get(path, undefined, { signal })```.  An abort rejects with ```signal.reason```.  Like a timeout, it stops the wait, not the remote work.  ```.subscribe()``` takes a signal too, as ```.subscribe(path, callback, { signal })```, and unsubscribes when it aborts.  It also takes ```{ every }``` there, so you don't need to pass a placeholder.
 - If a function you ```.set()``` throws or rejects when called from a remote store, the error can't be sent back and the caller never gets a reply.  Use ```.set_rpc()``` and ```.call_rpc()``` for functions which can fail.
 - As of version 1.4.0, you may subscribe() to a local event.  This should probably be eventually replaced with native events.  In other words, instead of ```.subscribe("a.b.c", callback)``` we should use ```.on("path.a.b.c", callback)```
 
@@ -249,7 +250,7 @@ Synchronized Event Store
     * [.set_rpc_class(object, key_description_pairs, opts)](#Entangld+set_rpc_class)
     * [.call_rpc(path, [args], [options])](#Entangld+call_rpc) ⇒ <code>Promise</code>
     * [.get(path, [params], [options])](#Entangld+get) ⇒ <code>Promise</code>
-    * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
+    * [.subscribe(path, func, [options])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
     * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
     * [.unsubscribe_tree(path)](#Entangld+unsubscribe_tree)
@@ -451,6 +452,7 @@ Call an RPC procedure in the datastore
 | [args] | <code>Array</code> | <code>[]</code> | the arguments to pass to the RPC. |
 | [options] | <code>object</code> |  |  |
 | [options.timeout_ms] | <code>number</code> |  | reject with an EntangldTimeoutError if no reply arrives within this many milliseconds. This stops the wait, not the RPC, which may still run. Omit to wait indefinitely. |
+| [options.signal] | <code>AbortSignal</code> |  | reject with signal.reason when this aborts. This also stops the wait, not the RPC. |
 
 <a name="Entangld+get"></a>
 
@@ -464,8 +466,8 @@ recursion and may be expensive.
 **Returns**: <code>Promise</code> - promise resolving to the object at that path.  
 **Throws**:
 
-- <code>TypeError</code> if path is not a string, or timeout_ms is not a
-positive number of at most 2147483647.
+- <code>TypeError</code> if path is not a string, timeout_ms is not a
+positive number of at most 2147483647, or signal is not an AbortSignal.
 
 
 | Param | Type | Description |
@@ -474,10 +476,11 @@ positive number of at most 2147483647.
 | [params] | <code>object</code> | the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode). |
 | [options] | <code>object</code> |  |
 | [options.timeout_ms] | <code>number</code> | reject with an EntangldTimeoutError if no value arrives within this many milliseconds. Applies to remote paths and to local functions. It is never sent to a remote store. Omit to wait indefinitely. |
+| [options.signal] | <code>AbortSignal</code> | reject with signal.reason when this aborts. If it has already aborted, nothing is sent and no function is called. This only stops the wait, not any work a remote store or local function has started. |
 
 <a name="Entangld+subscribe"></a>
 
-### entangld.subscribe(path, func, [every]) ⇒ <code>uuidv4</code>
+### entangld.subscribe(path, func, [options]) ⇒ <code>uuidv4</code>
 Subscribe to change events for a path
 
 If objects at or below this path change, you will get a callback
@@ -513,14 +516,16 @@ the getter `sub.is_pass_through`.
 **Returns**: <code>uuidv4</code> - - the uuid of the subscription  
 **Throws**:
 
-- <code>TypeError</code> if path is not a string.
+- <code>TypeError</code> if path is not a string, or signal is not an AbortSignal.
 
 
 | Param | Type | Default | Description |
 | --- | --- | --- | --- |
 | path | <code>string</code> |  | the path to watch.  Use of '*' is allowed as a wildcard (e.g. "system.*") |
 | func | <code>function</code> |  | the callback - will be of the form (path, value). |
-| [every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
+| [options] | <code>number</code> \| <code>null</code> \| <code>object</code> | <code></code> | an options object, or the value of options.every. |
+| [options.every] | <code>number</code> \| <code>null</code> | <code></code> | the number of `set` messages to wait before calling callback |
+| [options.signal] | <code>AbortSignal</code> |  | unsubscribe when this aborts. If it has already aborted, no subscription is created. The uuid is still returned, as it would be for a subscription which has since ended. |
 
 <a name="Entangld+subscribed_to"></a>
 
@@ -727,6 +732,8 @@ A datastore subscription object
     * [.is_head](#Subscription+is_head) ⇒ <code>Boolean</code>
     * [.has_downstream](#Subscription+has_downstream) ⇒ <code>Boolean</code>
     * [.has_upstream](#Subscription+has_upstream) ⇒ <code>Boolean</code>
+    * [.watch_signal(signal, on_abort)](#Subscription+watch_signal)
+    * [.unwatch_signal()](#Subscription+unwatch_signal)
     * [.call()](#Subscription+call)
     * [.matches_subscription(sub)](#Subscription+matches_subscription) ⇒ <code>Boolean</code>
     * [.matches_event_message(msg)](#Subscription+matches_event_message) ⇒ <code>Boolean</code>
@@ -796,6 +803,24 @@ It the subscription passes data back to a remote datastore (the upstream), this
 getter will return a true.
 
 **Kind**: instance property of [<code>Subscription</code>](#Subscription)  
+<a name="Subscription+watch_signal"></a>
+
+### subscription.watch\_signal(signal, on_abort)
+Run a callback when a signal aborts
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| signal | <code>AbortSignal</code> | the signal to watch |
+| on_abort | <code>function</code> | the callback |
+
+<a name="Subscription+unwatch_signal"></a>
+
+### subscription.unwatch\_signal()
+Stop watching this subscription's signal, if it has one
+
+**Kind**: instance method of [<code>Subscription</code>](#Subscription)  
 <a name="Subscription+call"></a>
 
 ### subscription.call()
@@ -909,6 +934,7 @@ the callback function is excluded.
 **Returns**: [<code>Subscription</code>](#Subscription) - a copy of this subscription object  
 
 ## TODO
+- Cancel remote work and pass deadlines between stores.  See [docs/request-lifecycle.md](docs/request-lifecycle.md) for the ideas and their wrinkles
 - Make sure incoming values request store doesn't build up
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
