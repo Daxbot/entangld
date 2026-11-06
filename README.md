@@ -940,7 +940,7 @@ the callback function is excluded.
 **Returns**: [<code>Subscription</code>](#Subscription) - a copy of this subscription object  
 
 ## TODO
-- Cancel remote work and pass deadlines between stores.  See [docs/request-lifecycle.md](docs/request-lifecycle.md) for the ideas and their wrinkles
+- Version the protocol, then consider remote cancellation, deadlines and error replies.  See the draft [protocol document](docs/protocol.md) for these ideas and their wrinkles
 - Make sure incoming values request store doesn't build up
 - When querying a parent, perhaps there should be an option to also dump child stores located below that level (potentially resource intensive)
 - Fix _deref_mode so it doesn't "strip" the returned object by turning everything to JSON and back (inefficient and it's basically mutating the result silently)
