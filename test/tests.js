@@ -362,6 +362,16 @@ describe("Multiplexed stores",()=>{
         });
     });
 
+    it("Ignores a value reply with no matching request", ()=>{
+
+        var request_length = Object.keys(s._requests).length;
+
+        assert.doesNotThrow(()=>{
+            s.receive({ type: "value", uuid: "no-such-request", value: 1 }, a);
+        });
+        assert.strictEqual(request_length, Object.keys(s._requests).length);
+    });
+
     it("Remote set single root value into child store", ()=>{
 
         s.set("b.something",99);
