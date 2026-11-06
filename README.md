@@ -168,6 +168,8 @@ parent.get("child"); // Returns {"child" : "data"}
 ```
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
+- A ```.get()``` or ```.call_rpc()``` waits forever if no reply arrives, for example if the link drops mid-request.  Pass ```{ timeout_ms }``` as the third argument and it will instead reject with an ```EntangldTimeoutError```.  This works for remote paths and local functions, and is off unless you ask for it.  It stops the wait, not the remote work, so an RPC which timed out may still have run.  Take care before retrying one.
+- If a function you ```.set()``` throws or rejects when called from a remote store, the error can't be sent back and the caller never gets a reply.  Use ```.set_rpc()``` and ```.call_rpc()``` for functions which can fail.
 - As of version 1.4.0, you may subscribe() to a local event.  This should probably be eventually replaced with native events.  In other words, instead of ```.subscribe("a.b.c", callback)``` we should use ```.on("path.a.b.c", callback)```
 
 ## _deref_mode
@@ -188,6 +190,9 @@ If these two issues can be resolved at some point, _deref_mode will probably be 
 </dd>
 <dt><a href="#EntangldError">EntangldError</a></dt>
 <dd><p>Error class for Entangld.</p>
+</dd>
+<dt><a href="#EntangldTimeoutError">EntangldTimeoutError</a> ⇐ <code><a href="#EntangldError">EntangldError</a></code></dt>
+<dd><p>Error for a request which got no reply in time.</p>
 </dd>
 <dt><a href="#RPCError">RPCError</a></dt>
 <dd><p>Remote Error class for Entangld.</p>
@@ -242,8 +247,8 @@ Synchronized Event Store
     * [.set(path, data, [operation_type], [params])](#Entangld+set)
     * [.set_rpc(path, func, opts)](#Entangld+set_rpc)
     * [.set_rpc_class(object, key_description_pairs, opts)](#Entangld+set_rpc_class)
-    * [.call_rpc(path, [args])](#Entangld+call_rpc) ⇒ <code>Promise</code>
-    * [.get(path, [params])](#Entangld+get) ⇒ <code>Promise</code>
+    * [.call_rpc(path, [args], [options])](#Entangld+call_rpc) ⇒ <code>Promise</code>
+    * [.get(path, [params], [options])](#Entangld+get) ⇒ <code>Promise</code>
     * [.subscribe(path, func, [every])](#Entangld+subscribe) ⇒ <code>uuidv4</code>
     * [.subscribed_to(subscription)](#Entangld+subscribed_to) ⇒ <code>Boolean</code>
     * [.unsubscribe(path_or_uuid)](#Entangld+unsubscribe) ⇒ <code>number</code>
@@ -430,7 +435,7 @@ Set a class instance as an RPC object in the datastore
 
 <a name="Entangld+call_rpc"></a>
 
-### entangld.call\_rpc(path, [args]) ⇒ <code>Promise</code>
+### entangld.call\_rpc(path, [args], [options]) ⇒ <code>Promise</code>
 Call an RPC procedure in the datastore
 
 **Kind**: instance method of [<code>Entangld</code>](#Entangld)  
@@ -444,10 +449,12 @@ Call an RPC procedure in the datastore
 | --- | --- | --- | --- |
 | path | <code>string</code> |  | the path to query (like "system.voltage"). |
 | [args] | <code>Array</code> | <code>[]</code> | the arguments to pass to the RPC. |
+| [options] | <code>object</code> |  |  |
+| [options.timeout_ms] | <code>number</code> |  | reject with an EntangldTimeoutError if no reply arrives within this many milliseconds. This stops the wait, not the RPC, which may still run. Omit to wait indefinitely. |
 
 <a name="Entangld+get"></a>
 
-### entangld.get(path, [params]) ⇒ <code>Promise</code>
+### entangld.get(path, [params], [options]) ⇒ <code>Promise</code>
 Get an object from the store.
 
 Note: using max_depth, especially large max_depth, involves a lot of
@@ -457,13 +464,16 @@ recursion and may be expensive.
 **Returns**: <code>Promise</code> - promise resolving to the object at that path.  
 **Throws**:
 
-- <code>TypeError</code> if path is not a string.
+- <code>TypeError</code> if path is not a string, or timeout_ms is not a
+positive number of at most 2147483647.
 
 
 | Param | Type | Description |
 | --- | --- | --- |
 | path | <code>string</code> | the path to query (like "system.voltage"). |
 | [params] | <code>object</code> | the parameters to be passed to the remote function (RPC) or the maximum depth of the returned object (normal mode). |
+| [options] | <code>object</code> |  |
+| [options.timeout_ms] | <code>number</code> | reject with an EntangldTimeoutError if no value arrives within this many milliseconds. Applies to remote paths and to local functions. It is never sent to a remote store. Omit to wait indefinitely. |
 
 <a name="Entangld+subscribe"></a>
 
@@ -570,6 +580,13 @@ Remove any subscriptions that are beneath a path.
 Error class for Entangld.
 
 **Kind**: global class  
+<a name="EntangldTimeoutError"></a>
+
+## EntangldTimeoutError ⇐ [<code>EntangldError</code>](#EntangldError)
+Error for a request which got no reply in time.
+
+**Kind**: global class  
+**Extends**: [<code>EntangldError</code>](#EntangldError)  
 <a name="RPCError"></a>
 
 ## RPCError

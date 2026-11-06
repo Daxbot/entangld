@@ -164,6 +164,8 @@ parent.get("child"); // Returns {"child" : "data"}
 ```
 This is because we would have to perform recursive child queries to show you a complete tree.   This is left for a future version.
 - If you ```.set()``` a function, that function may return a value or a Promise.  If it returns a promise, that promise will be returned directly to you when you call ```.get()```
+- A ```.get()``` or ```.call_rpc()``` waits forever if no reply arrives, for example if the link drops mid-request.  Pass ```{ timeout_ms }``` as the third argument and it will instead reject with an ```EntangldTimeoutError```.  This works for remote paths and local functions, and is off unless you ask for it.  It stops the wait, not the remote work, so an RPC which timed out may still have run.  Take care before retrying one.
+- If a function you ```.set()``` throws or rejects when called from a remote store, the error can't be sent back and the caller never gets a reply.  Use ```.set_rpc()``` and ```.call_rpc()``` for functions which can fail.
 - As of version 1.4.0, you may subscribe() to a local event.  This should probably be eventually replaced with native events.  In other words, instead of ```.subscribe("a.b.c", callback)``` we should use ```.on("path.a.b.c", callback)```
 
 ## _deref_mode
