@@ -1,0 +1,248 @@
+const assert = require("assert");
+const { getEventListeners } = require("events");
+const Entangld = require("../lib/Datastore.js");
+const { EntangldTimeoutError } = require("../lib/error.js");
+
+const listeners = (signal) => getEventListeners(signal, "abort").length;
+
+// Resolve to the error a promise rejects with, or fail if it resolves
+function rejection(promise) {
+    return promise.then(
+        (val) => assert.fail(`Expected a rejection, got ${val}`),
+        (err) => err
+    );
+}
+
+// Attach store b to store a. Messages from a are delivered only if allow(msg)
+function linked_stores(allow = () => true) {
+    const a = new Entangld();
+    const b = new Entangld();
+
+    a.transmit((msg, store) => {
+        if (allow(msg)) store.receive(msg, a);
+    });
+    b.transmit((msg, store) => store.receive(msg, b));
+
+    a.attach("b", b);
+    b.attach("a", a);
+
+    return { a, b };
+}
+
+describe("Signals", () => {
+
+    describe("get", () => {
+
+        it("rejects with the reason when a remote get is aborted", async () => {
+            const { a } = linked_stores(() => false);
+            const controller = new AbortController();
+            const reason = new Error("gave up");
+
+            const request = a.get("b.value", undefined, { signal: controller.signal });
+            controller.abort(reason);
+
+            assert.strictEqual(await rejection(request), reason);
+        });
+
+        it("removes the request after aborting", async () => {
+            const { a } = linked_stores(() => false);
+            const controller = new AbortController();
+
+            const request = a.get("b.value", undefined, { signal: controller.signal });
+            controller.abort();
+            await rejection(request);
+
+            assert.strictEqual(Object.keys(a._requests).length, 0);
+        });
+
+        it("ignores a reply which arrives after aborting", async () => {
+            const { a, b } = linked_stores(() => false);
+            const controller = new AbortController();
+            const sent = [];
+            a.transmit((msg) => sent.push(msg));
+
+            const request = a.get("b.value", undefined, { signal: controller.signal });
+            controller.abort();
+            await rejection(request);
+
+            assert.doesNotThrow(() => {
+                a.receive({ type: "value", uuid: sent[0].uuid, value: 1 }, b);
+            });
+        });
+
+        it("sends nothing if the signal has already aborted", async () => {
+            const sent = [];
+            const { a } = linked_stores((msg) => {
+                sent.push(msg);
+                return true;
+            });
+            const before = sent.length;
+            const reason = new Error("gave up");
+
+            const err = await rejection(a.get("b.value", undefined, { signal: AbortSignal.abort(reason) }));
+
+            assert.strictEqual(err, reason);
+            assert.strictEqual(sent.length, before);
+            assert.strictEqual(Object.keys(a._requests).length, 0);
+        });
+
+        it("rejects if a local function is aborted", async () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const reason = new Error("gave up");
+            a.set("hang", () => new Promise(() => { }));
+
+            const request = a.get("hang", undefined, { signal: controller.signal });
+            controller.abort(reason);
+
+            assert.strictEqual(await rejection(request), reason);
+        });
+
+        it("doesn't call a local function if the signal has already aborted", async () => {
+            const a = new Entangld();
+            let called = false;
+            a.set("f", () => {
+                called = true;
+            });
+
+            await rejection(a.get("f", undefined, { signal: AbortSignal.abort() }));
+
+            assert.strictEqual(called, false);
+        });
+
+        it("resolves if the reply beats the abort", async () => {
+            const { a, b } = linked_stores();
+            const controller = new AbortController();
+            b.set("value", 7);
+
+            const value = await a.get("b.value", undefined, { signal: controller.signal });
+            controller.abort();
+
+            assert.strictEqual(value, 7);
+        });
+
+        it("keeps signals off the wire", async () => {
+            const sent = [];
+            const { a, b } = linked_stores((msg) => {
+                sent.push(JSON.stringify(msg));
+                return true;
+            });
+            b.set("value", 7);
+
+            await a.get("b.value", undefined, { signal: new AbortController().signal });
+
+            assert(!sent.join("").includes("signal"));
+        });
+
+        it("throws if signal isn't an AbortSignal", () => {
+            const a = new Entangld();
+
+            for (const signal of [null, 1, "signal", {}]) {
+                assert.throws(() => a.get("value", undefined, { signal }), TypeError);
+            }
+        });
+    });
+
+    describe("listeners", () => {
+
+        it("removes its listener when a request resolves", async () => {
+            const { a, b } = linked_stores();
+            const { signal } = new AbortController();
+            b.set("value", 7);
+
+            await a.get("b.value", undefined, { signal });
+
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("removes its listener when a local function rejects", async () => {
+            const a = new Entangld();
+            const { signal } = new AbortController();
+            a.set("bad", () => Promise.reject(new Error("boom")));
+
+            await rejection(a.get("bad", undefined, { signal }));
+
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("removes its listener when a request times out", async () => {
+            const { a } = linked_stores(() => false);
+            const { signal } = new AbortController();
+
+            await rejection(a.get("b.value", undefined, { signal, timeout_ms: 5 }));
+
+            assert.strictEqual(listeners(signal), 0);
+        });
+    });
+
+    describe("with timeout_ms", () => {
+
+        it("times out if the signal doesn't abort", async () => {
+            const { a } = linked_stores(() => false);
+            const { signal } = new AbortController();
+
+            const err = await rejection(a.get("b.value", undefined, { signal, timeout_ms: 5 }));
+
+            assert(err instanceof EntangldTimeoutError);
+        });
+
+        it("rejects with the abort reason if the signal aborts first", async () => {
+            const { a } = linked_stores(() => false);
+            const controller = new AbortController();
+            const reason = new Error("gave up");
+
+            const request = a.get("b.value", undefined, { signal: controller.signal, timeout_ms: 1000 });
+            controller.abort(reason);
+
+            assert.strictEqual(await rejection(request), reason);
+        });
+
+        it("cancels the timer after an abort", async () => {
+            const { a } = linked_stores(() => false);
+            const controller = new AbortController();
+            const { setTimeout: set_timer, clearTimeout: clear_timer } = global;
+            const cleared = [];
+            let timer;
+
+            global.setTimeout = (...args) => (timer = set_timer(...args));
+            global.clearTimeout = (id) => {
+                cleared.push(id);
+                clear_timer(id);
+            };
+
+            try {
+                const request = a.get("b.value", undefined, { signal: controller.signal, timeout_ms: 1000 });
+                controller.abort();
+                await rejection(request);
+            } finally {
+                global.setTimeout = set_timer;
+                global.clearTimeout = clear_timer;
+            }
+
+            assert(cleared.includes(timer));
+        });
+    });
+
+    describe("call_rpc", () => {
+
+        it("rejects with the reason when aborted", async () => {
+            const { a } = linked_stores(() => false);
+            const controller = new AbortController();
+            const reason = new Error("gave up");
+
+            const request = a.call_rpc("b.rpc", [1], { signal: controller.signal });
+            controller.abort(reason);
+
+            assert.strictEqual(await rejection(request), reason);
+        });
+
+        it("returns the result if the reply beats the abort", async () => {
+            const { a, b } = linked_stores();
+            b.set_rpc("double", (value) => value * 2);
+
+            const { signal } = new AbortController();
+
+            assert.strictEqual(await a.call_rpc("b.double", [4], { signal }), 8);
+        });
+    });
+});
