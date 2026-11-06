@@ -223,6 +223,176 @@ describe("Signals", () => {
         });
     });
 
+    describe("subscribe", () => {
+
+        it("stops calling back when a local subscription is aborted", async () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const seen = [];
+
+            a.subscribe("value", (path, value) => seen.push(value), { signal: controller.signal });
+            a.set("value", 1);
+            controller.abort();
+            a.set("value", 2);
+
+            assert.deepStrictEqual(seen, [1]);
+            assert.strictEqual(a.subscribed_to("value"), false);
+        });
+
+        it("removes the subscription from the remote store when aborted", () => {
+            const { a, b } = linked_stores();
+            const controller = new AbortController();
+            const seen = [];
+
+            a.subscribe("b.value", (path, value) => seen.push(value), { signal: controller.signal });
+            b.set("value", 1);
+            assert.strictEqual(b._subscriptions.length, 1);
+
+            controller.abort();
+            b.set("value", 2);
+
+            assert.deepStrictEqual(seen, [1]);
+            assert.strictEqual(a._subscriptions.length, 0);
+            assert.strictEqual(b._subscriptions.length, 0);
+        });
+
+        it("only removes the subscription which was aborted", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+            const seen = [];
+
+            a.subscribe("value", () => seen.push("signal"), { signal: controller.signal });
+            a.subscribe("value", () => seen.push("plain"));
+            controller.abort();
+            a.set("value", 1);
+
+            assert.deepStrictEqual(seen, ["plain"]);
+        });
+
+        it("still takes every as the third argument", () => {
+            for (const [every, calls] of [[2, 2], ["2", 2], [null, 4], [undefined, 4]]) {
+                const a = new Entangld();
+                const seen = [];
+
+                a.subscribe("value", (path, value) => seen.push(value), every);
+                for (const value of [1, 2, 3, 4]) a.set("value", value);
+
+                assert.strictEqual(seen.length, calls);
+            }
+        });
+
+        it("takes an options object without a signal", () => {
+            const a = new Entangld();
+            const seen = [];
+
+            a.subscribe("value", (path, value) => seen.push(value), { every: 2 });
+            for (const value of [1, 2, 3, 4]) a.set("value", value);
+
+            assert.strictEqual(seen.length, 2);
+        });
+
+        it("takes every and signal together", () => {
+            const a = new Entangld();
+            const { signal } = new AbortController();
+            const seen = [];
+
+            a.subscribe("value", (path, value) => seen.push(value), { every: 2, signal });
+            for (const value of [1, 2, 3, 4]) a.set("value", value);
+
+            assert.strictEqual(seen.length, 2);
+        });
+
+        it("creates nothing if the signal has already aborted", () => {
+            const sent = [];
+            const { a } = linked_stores((msg) => {
+                sent.push(msg);
+                return true;
+            });
+            const before = sent.length;
+
+            const uuid = a.subscribe("b.value", () => { }, { signal: AbortSignal.abort() });
+
+            assert.strictEqual(typeof uuid, "string");
+            assert.strictEqual(a._subscriptions.length, 0);
+            assert.strictEqual(sent.length, before);
+        });
+
+        it("doesn't throw if aborted after unsubscribing", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+
+            const uuid = a.subscribe("value", () => { }, { signal: controller.signal });
+            a.unsubscribe(uuid);
+
+            assert.doesNotThrow(() => controller.abort());
+        });
+
+        it("removes its listener when aborted", () => {
+            const a = new Entangld();
+            const controller = new AbortController();
+
+            a.subscribe("value", () => { }, { signal: controller.signal });
+            assert.strictEqual(listeners(controller.signal), 1);
+            controller.abort();
+
+            assert.strictEqual(listeners(controller.signal), 0);
+        });
+
+        it("removes its listener on unsubscribe", () => {
+            const a = new Entangld();
+            const { signal } = new AbortController();
+
+            a.unsubscribe(a.subscribe("value", () => { }, { signal }));
+
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("removes its listener on unsubscribe_tree", () => {
+            const a = new Entangld();
+            const { signal } = new AbortController();
+
+            a.subscribe("tree.value", () => { }, { signal });
+            a.unsubscribe_tree("tree");
+
+            assert.strictEqual(listeners(signal), 0);
+        });
+
+        it("still works after the store is reattached", () => {
+            const { a, b } = linked_stores();
+            const controller = new AbortController();
+            const { signal } = controller;
+            const seen = [];
+
+            const uuid = a.subscribe("b.value", (path, value) => seen.push(value), { signal });
+
+            const replacement = new Entangld();
+            replacement.transmit((msg, store) => store.receive(msg, replacement));
+            replacement.attach("a", a);
+            a.detach("b");
+            a.attach("b", replacement);
+
+            assert.strictEqual(a.subscriptions[0].uuid, uuid);
+            assert.strictEqual(listeners(signal), 1);
+
+            replacement.set("value", 1);
+            controller.abort();
+            replacement.set("value", 2);
+
+            assert.deepStrictEqual(seen, [1]);
+            assert.strictEqual(a._subscriptions.length, 0);
+            assert.strictEqual(replacement._subscriptions.length, 0);
+            assert.strictEqual(b._subscriptions.length, 0);
+        });
+
+        it("throws if signal isn't an AbortSignal", () => {
+            const a = new Entangld();
+
+            for (const signal of [null, 1, "signal", {}]) {
+                assert.throws(() => a.subscribe("value", () => { }, { signal }), TypeError);
+            }
+        });
+    });
+
     describe("call_rpc", () => {
 
         it("rejects with the reason when aborted", async () => {
