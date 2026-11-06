@@ -203,10 +203,10 @@ If these two issues can be resolved at some point, _deref_mode will probably be 
 <dd><p>Message class for Entangld.</p>
 <p>These messages are used for executing datastore operations between
 remote datastores. In these relationships, there is always an upstream
-and downstream pair, so that <code>get</code>, <code>set</code>, <code>push</code> and <code>subscribe</code> messages
-are created upstream and passed downstream while <code>event</code> and <code>value</code> messages
-are created downstream and are passed back up. <code>unsubscribe</code> events can travel
-in both directions. To maintain consistency, the internal <code>.path</code> attribute
+and downstream pair, so that <code>get</code>, <code>set</code>, <code>push</code>, <code>subscribe</code> and <code>unsubscribe</code>
+messages are created upstream and passed downstream while <code>event</code> and <code>value</code>
+messages are created downstream and are passed back up. To maintain consistency,
+the internal <code>.path</code> attribute
 will always refer a path relative to the downstream datastore, since the
 downstream datastores do not necessarilly have access to the upstream store
 structure, and so cannot generally construct upstream paths. This means that
@@ -214,14 +214,13 @@ the <code>.path</code> attribute is a <code>tree</code> relative to the upstream
 the upstream path can be reconstructed as:</p>
 <pre><code class="language-javascript"> &gt; upstream._namespaces.get(downstream) + &quot;.&quot; + msg.path;
 </code></pre>
-<p>Since <code>unsubscribe</code> messages can pass either upstream or downstream, the notion
-of a path is ill-defined, and so unsubscribe messages should have their <code>.path</code>
-attributes set to undefined or null.</p>
+<p>Since <code>unsubscribe</code> messages identify a subscription by its <code>.uuid</code>, they should
+have their <code>.path</code> attributes set to undefined or null.</p>
 <p>Most messages will also have a <code>.uuid</code> attribute. For <code>get</code>/<code>value</code> messages,
 this allows for the value to be properly linked back up with the original <code>get</code>
 message. For the <code>subscribe</code>/<code>unsubscribe</code>/<code>event</code> messages, this allows for
 callback functions to be trigger properly, and for unsubscribe messages to
-propogate both directions. <code>set</code>/<code>push</code> messages do not use the <code>.uuid</code> attribute
+propogate down the chain. <code>set</code>/<code>push</code> messages do not use the <code>.uuid</code> attribute
 since they require no response.</p>
 </dd>
 <dt><a href="#Subscription">Subscription</a></dt>
@@ -611,10 +610,10 @@ Message class for Entangld.
 
 These messages are used for executing datastore operations between
 remote datastores. In these relationships, there is always an upstream
-and downstream pair, so that `get`, `set`, `push` and `subscribe` messages
-are created upstream and passed downstream while `event` and `value` messages
-are created downstream and are passed back up. `unsubscribe` events can travel
-in both directions. To maintain consistency, the internal `.path` attribute
+and downstream pair, so that `get`, `set`, `push`, `subscribe` and `unsubscribe`
+messages are created upstream and passed downstream while `event` and `value`
+messages are created downstream and are passed back up. To maintain consistency,
+the internal `.path` attribute
 will always refer a path relative to the downstream datastore, since the
 downstream datastores do not necessarilly have access to the upstream store
 structure, and so cannot generally construct upstream paths. This means that
@@ -623,15 +622,14 @@ the upstream path can be reconstructed as:
 ```javascript
  > upstream._namespaces.get(downstream) + "." + msg.path;
 ```
-Since `unsubscribe` messages can pass either upstream or downstream, the notion
-of a path is ill-defined, and so unsubscribe messages should have their `.path`
-attributes set to undefined or null.
+Since `unsubscribe` messages identify a subscription by its `.uuid`, they should
+have their `.path` attributes set to undefined or null.
 
 Most messages will also have a `.uuid` attribute. For `get`/`value` messages,
 this allows for the value to be properly linked back up with the original `get`
 message. For the `subscribe`/`unsubscribe`/`event` messages, this allows for
 callback functions to be trigger properly, and for unsubscribe messages to
-propogate both directions. `set`/`push` messages do not use the `.uuid` attribute
+propogate down the chain. `set`/`push` messages do not use the `.uuid` attribute
 since they require no response.
 
 **Kind**: global class  

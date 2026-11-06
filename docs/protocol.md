@@ -88,9 +88,6 @@ subscriptions.
 { "type": "unsubscribe", "uuid": "e6c079db-a6d6-4b5b-9baa-b6bb4f8f3a49" }
 ```
 
-**TODO:** the comments in `lib/Message.js` say this can travel in both directions, but every send in `lib/Datastore.js`
-goes downstream. Decide which is right.
-
 ## Behaviours
 
 ### uuids
