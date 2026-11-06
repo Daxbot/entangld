@@ -357,27 +357,128 @@ Wrinkles:
 
 `set`, `push` and `subscribe` have no reply, so a lost message goes unnoticed. A lost `subscribe` is the worst case,
 because the events simply never arrive. Acks would need an answer for what to do when one doesn't come, and they would
-add traffic to what is often a high-rate path, so they should probably be opt-in. For `subscribe`, this is a better fit
-than a strict mode, because what a caller wants to know is that the subscription arrived, not that the path exists yet.
+add traffic to what is often a high-rate path, so they should probably be opt-in.
+
+For `subscribe`, what a caller wants to know is that the subscription arrived, not that the path exists yet. That's a
+better fit than a strict mode, and [checking a subscription](#checking-a-subscription) may answer it without acks at all.
+
+### Checking a subscription
+
+Because a subscription keeps one uuid along its whole chain, the store which owns the path can confirm that it has it.
+This would be another `@entangld` query:
+
+```js
+const uuid = store.subscribe("b.c.motor.speed", callback);
+
+await store.subscription_active(uuid);
+// true        The owning store has it
+// false       It doesn't, so it was lost or hasn't arrived yet
+// null        A store on the way doesn't support the check
+```
+
+Unlike a per-message ack, this costs nothing unless it's called, it works at any time, such as after a reconnect, and only
+the owning store needs to understand it. The library already knows the path from the uuid.
+
+Wrinkle: `false` can mean a subscription is still on its way, so checking straight after subscribing isn't useful.
+
+### Describing endpoints
+
+`set_rpc` already returns usage text, which is a small version of this. `describe` would also return what a store has been
+told about a path:
+
+```js
+store.set_description("motor.speed", {
+    description: "Wheel speed",
+    encoding: speed_encoding.to_json(),
+    user_data: { unit: "m/s", precision: 0.001 }
+});
+
+store.set_rpc("motor.stop", stop, { description: "Stop the motor", user_data: { safe_to_retry: true } });
+
+await store.describe("b.motor.speed");
+// { exists: true, kind: "data", description: "Wheel speed", encoding: { ... }, user_data: { ... } }
+```
+
+- **`description` is for people.** It's a short summary of the path.
+- **`encoding` is for the library.** It says how a value is packed, and only matters if the path uses a codec.
+- **`user_data` is for the application.** The library stores it and returns it unchanged, and never reads it. It can hold
+  anything which fits in JSON, like a unit, the precision of a sensor, or a JSON Schema. The library doesn't define any of
+  those, so an application can use whatever suits it.
+
+All three are optional, and nothing is enforced, because a store accepts any JSON. They live beside the data, not in it, so
+they don't appear in `get("")`, and removing a value doesn't lose them. Only the owning store has them, for exact paths at
+first.
+
+Wrinkles:
+
+- **Size.** `describe` returns `user_data` every time, so large values cost traffic on slow links. It may be worth a way
+  to ask for it only when needed.
+- **Drift.** Nothing checks `user_data` against the real value, or against `encoding`. A `Float32` might not hold a
+  claimed precision, for example. That's accepted, because the library doesn't read it.
 
 ### Compact events
 
-An event for one number is 115 bytes of JSON, most of it the `path` and `uuid`. A short subscription id agreed for each
-link gets that to 15 bytes, as `[ 3, 12, 1.234567 ]`, with no schema. On a link which sends one path about ten times a
-second, that's a real saving. It only needs both ends of a link to support it.
+Today's events repeat the `path` and `uuid` in every message. For high-rate paths this can be replaced in stages, each
+useful by itself. Sizes are the message alone, before framing, and were worked out rather than measured on a link:
 
-### Schemas
+| Encoding | One number | 8-field pose |
+| --- | --- | --- |
+| Today's JSON | 115 | 209 |
+| Short subscription id, in JSON | 15 | 114 |
+| Id, with an `encoding` for the keys, in JSON | 15 | 69 |
+| Id, with binary values as base64 in JSON | about 18 | about 54 |
+| Id, with raw binary values | about 7 | about 35 |
 
-`set_rpc` already returns usage text, which is a small version of this. A store could describe its endpoints, so a caller
-knows what to expect. Schemas should be optional descriptions, never enforced, because a store accepts any JSON and a
-schema can drift from what's really there.
+The owner agrees the id when the subscription starts, and sends the `encoding` then, so both ends build the same codec
+and can't disagree. This reply also confirms that the subscription arrived:
 
-Packing messages from a schema isn't worth it. On the example above, binary with a schema gets to 11 bytes against 15 for
-compact events, and adds the risk of two ends disagreeing about a schema.
+```js
+{ type: "subscribed", uuid, id: 12, encoding: { /* ... */ } }
+```
+
+Wrinkles:
+
+- **It's per link.** Each link agrees its own ids, so a store in the middle decodes and encodes again, and a link with an
+  old store stays on today's events.
+- **Values which don't fit.** A value which doesn't match its `encoding` goes as a normal event.
+- **Lossless by default.** Dropping the `path` and `uuid` loses nothing, so that can happen automatically. An `encoding`
+  which narrows a value, like `Float32`, is lossy, so the owner chooses it for a path.
+- **Rate often matters more.** The existing `every` option can cut a high-rate path by more than any encoding, with no
+  protocol change.
+
+### Codecs
+
+The library keeps no runtime dependencies, so packing is pluggable. A codec only provides ways to load an encoding, and
+to encode and decode a value with it, and links opt in:
+
+```js
+store.negotiate(link, { codec: entangld_obj2buf });
+```
+
+[obj2buf](https://github.com/Nova-Dynamics/obj2buf-node) is the intended reference. It's pure JavaScript with no
+dependencies. `Schema.to_json()` and `Schema.from_json()` give us an `encoding` which can be sent over a link, it can tell
+`Float32` from `Float64`, and `schema.validate()` gives us the fallback for values which don't fit. Fields which can be
+`null` need `OptionalType`. It hasn't been tried with this library yet.
+
+The two ends need to use the same codec, so the codec's name should be part of negotiation.
+
+### Binary frames
+
+The aim is raw binary on the wire, but `sockhop` can't carry it yet. It splits messages on a terminator and parses each one
+as JSON, so binary data needs a change there, like length-prefixed frames. That would also remove most of the framing
+around each message.
+
+Until then, the library supports both, and negotiation decides which a link uses:
+
+1. **Base64 inside JSON.** This works on any JSON transport today, for about a third more bytes than raw binary.
+2. **Raw binary frames.** This needs a transport which can carry them, so a transport has to be able to say that it can.
+
+The library doesn't own the transport, so the change itself belongs in `sockhop`.
 
 ### Smaller improvements
 
 - **`value` size:** `value` repeats the `path` the requester already knows, and `set` sends an empty `params`.
 - **`every: null`:** `subscribe` sends this explicitly, where other optional fields are left out.
-- **Transport guidance:** a recommended framing and example transport, so that a new port doesn't start from `lib/`.
+- **Transport guidance:** a recommended framing and example transport, so that a new port doesn't start from `lib/`. What
+  a transport must guarantee is an open question [above](#overview).
 - **Conformance cases:** a shared set of message examples which any port can run, so that ports notice when they drift.
