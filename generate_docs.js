@@ -1,7 +1,7 @@
 const fs=require("fs");
 const jsdoc2md=require("jsdoc-to-markdown");
 
-const templatefile=fs.readFileSync("README.hbs", "utf8");
+const template="# API reference\n\n{{>main}}\n";
 
-jsdoc2md.render({files: "lib/*.js", template:templatefile})
-	.then(output=> fs.writeFileSync("README.md", output));
+jsdoc2md.render({files: "lib/*.js", template})
+	.then(output=> fs.writeFileSync("API.md", output));

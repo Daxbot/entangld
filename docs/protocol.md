@@ -37,7 +37,7 @@ Messages are objects with these fields. A field which is `undefined` is left out
 Reads a path or calls a function. `value` is the optional parameter: the argument for a function, or a maximum depth for
 data. It's left out if there is none.
 
-```json
+```js
 { "type": "get", "path": "system.voltage", "uuid": "fe9921dd-a48a-4fac-9f4e-2fa882b2948d" }
 { "type": "get", "path": "double.me", "value": [ 4 ], "uuid": "1023077d-683f-4ff1-8900-bb01b298e0ca" }
 ```
@@ -46,7 +46,7 @@ data. It's left out if there is none.
 
 Answers a `get`, with the same `path` and `uuid`. A path with no data has no `value` field.
 
-```json
+```js
 { "type": "value", "path": "system.voltage", "value": 12, "uuid": "fe9921dd-a48a-4fac-9f4e-2fa882b2948d" }
 ```
 
@@ -58,7 +58,7 @@ it failed. `call_rpc` unwraps that, so to the protocol an RPC is an ordinary `ge
 Write to a path. There is no reply. A `set` with no `value` removes the path. A `push` adds to an array, and fails on the
 receiving store if the path isn't one.
 
-```json
+```js
 { "type": "set", "path": "system.voltage", "value": 2, "params": {} }
 { "type": "push", "path": "log", "value": 1, "params": { "limit": 5 } }
 ```
@@ -67,7 +67,7 @@ receiving store if the path isn't one.
 
 Asks to be told about changes to a path. There is no reply. The path may use `*` as a wildcard.
 
-```json
+```js
 { "type": "subscribe", "path": "system.*", "uuid": "e6c079db-a6d6-4b5b-9baa-b6bb4f8f3a49", "every": 2 }
 ```
 
@@ -76,7 +76,7 @@ Asks to be told about changes to a path. There is no reply. The path may use `*`
 Reports a change for a subscription. `path` is the path which changed, relative to the sender. The receiver adds its
 namespace for that link. `every` is applied by the store which owns the data, so skipped changes never cross a link.
 
-```json
+```js
 { "type": "event", "path": "system.voltage", "value": 12, "uuid": "e6c079db-a6d6-4b5b-9baa-b6bb4f8f3a49" }
 ```
 
@@ -85,7 +85,7 @@ namespace for that link. `every` is applied by the store which owns the data, so
 Ends a subscription. It has no `path`. A store also sends one in reply to an `event` which matches none of its
 subscriptions.
 
-```json
+```js
 { "type": "unsubscribe", "uuid": "e6c079db-a6d6-4b5b-9baa-b6bb4f8f3a49" }
 ```
 
@@ -156,7 +156,7 @@ lost reply would stall every caller waiting on it. It would also still need a ho
 Negotiation is per link, because messages already work hop by hop. It's an ordinary `get` of `@entangld.protocol` on the
 peer, and the answer is a protocol number and a list of features, both separate from the npm version:
 
-```json
+```js
 { "protocol": 1, "features": [ "cancel", "error_reply" ] }
 ```
 
@@ -215,7 +215,7 @@ begins. So the library does it, and each store peels off one hop:
 store.describe("b.c.motor.start");
 ```
 
-```json
+```js
 { "type": "get", "path": "@entangld.describe", "value": { "path": "c.motor.start" }, "uuid": "..." }
 ```
 
@@ -244,7 +244,7 @@ for a store which doesn't support the query.
 `get` returns `undefined` for a missing path, a removed path, and a function which returned `undefined`, and the replies
 are identical. A `value` reply gains a field saying whether the path was found:
 
-```json
+```js
 { "type": "value", "path": "nope", "found": false, "uuid": "..." }
 ```
 
