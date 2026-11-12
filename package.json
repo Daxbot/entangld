@@ -3,6 +3,9 @@
   "version": "2.7.0",
   "description": "Synchronized key-value stores with RPCs and events",
   "main": "index.js",
+  "browser": {
+    "crypto": false
+  },
   "jshintConfig": {
     "esversion": 6,
     "unused": true
