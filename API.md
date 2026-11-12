@@ -12,6 +12,9 @@
 <dt><a href="#EntangldTimeoutError">EntangldTimeoutError</a> ⇐ <code><a href="#EntangldError">EntangldError</a></code></dt>
 <dd><p>Error for a request which got no reply in time.</p>
 </dd>
+<dt><a href="#EntangldAbortError">EntangldAbortError</a> ⇐ <code><a href="#EntangldError">EntangldError</a></code></dt>
+<dd><p>Default reason for requests ended by abort().</p>
+</dd>
 <dt><a href="#RPCError">RPCError</a></dt>
 <dd><p>Remote Error class for Entangld.</p>
 </dd>
@@ -58,6 +61,7 @@ Synchronized Event Store
     * [.namespace()](#Entangld+namespace) ⇒ <code>string</code>
     * [.attach(namespace, obj)](#Entangld+attach)
     * [.detach([namespace], [obj])](#Entangld+detach) ⇒ <code>boolean</code>
+    * [.abort([reason])](#Entangld+abort) ⇒ <code>number</code>
     * [.transmit(func)](#Entangld+transmit)
     * [.receive(msg, obj)](#Entangld+receive)
     * [.push(path, data, [limit])](#Entangld+push)
@@ -135,6 +139,37 @@ one parameter.
 | --- | --- | --- |
 | [namespace] | <code>string</code> | the namespace. |
 | [obj] | <code>object</code> | the store object. |
+
+<a name="Entangld+abort"></a>
+
+### entangld.abort([reason]) ⇒ <code>number</code>
+Abort every request waiting on a reply from an attached store
+
+Each one rejects with reason, and its time limit and signal listener
+are cleared, so nothing is left to hold the process open. A reply
+which arrives later is ignored. Attachments, subscriptions, local
+functions which are still running and requests made afterwards are
+not affected, so this is safe to call more than once.
+
+Use it when no reply can arrive any more, for example when a process
+is shutting down or its link has closed. detach() doesn't do this: a
+request doesn't belong to a store, and its reply can still arrive if
+the same store is attached again.
+
+Future work: abort(reason, obj), to abort only the requests sent to
+one store, for example when one of several sockets closes. Requests
+are kept by uuid alone (see get()), and a reply is matched by its
+uuid whichever store it came from, so each request would first need
+to record the obj it was sent to. That obj must be the one passed to
+attach(), not its namespace, since a namespace can be detached and
+attached to another store while a request waits. See the README.
+
+**Kind**: instance method of [<code>Entangld</code>](#Entangld)  
+**Returns**: <code>number</code> - how many requests were aborted.  
+
+| Param | Type | Description |
+| --- | --- | --- |
+| [reason] | <code>\*</code> | what the requests reject with. Defaults to an EntangldAbortError. |
 
 <a name="Entangld+transmit"></a>
 
@@ -410,6 +445,13 @@ Error class for Entangld.
 
 ## EntangldTimeoutError ⇐ [<code>EntangldError</code>](#EntangldError)
 Error for a request which got no reply in time.
+
+**Kind**: global class  
+**Extends**: [<code>EntangldError</code>](#EntangldError)  
+<a name="EntangldAbortError"></a>
+
+## EntangldAbortError ⇐ [<code>EntangldError</code>](#EntangldError)
+Default reason for requests ended by abort().
 
 **Kind**: global class  
 **Extends**: [<code>EntangldError</code>](#EntangldError)  

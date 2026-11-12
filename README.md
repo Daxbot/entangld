@@ -225,6 +225,30 @@ try {
 child.set("job.progress", 100); // Nobody is told
 ```
 
+### Aborting waiting requests
+
+When no reply can arrive any more, for example when a process is shutting down or its link has closed, `abort()` ends
+every request waiting on an attached store. Each one rejects, with an `EntangldAbortError` or the reason you pass, and
+its time limit is cleared. A pending `timeout_ms` would otherwise keep the process running until it fires.
+
+```js
+const { EntangldAbortError } = Entangld.error;
+
+const request = parent.get("child.job.slow", undefined, { timeout_ms: 30000 });
+
+parent.abort(); // Returns how many requests it aborted
+
+try {
+    await request;
+} catch (err) {
+    console.log(err instanceof EntangldAbortError); // true
+}
+```
+
+`abort()` changes nothing else. Attachments, subscriptions, local functions which are still running and later requests
+carry on, so it is safe to call more than once. `detach()` doesn't abort requests, since a reply can still arrive if the
+same store is attached again.
+
 ### Over sockets
 
 Each side of a socket gets its own store. The socket stands in for the store on the other side.
@@ -298,11 +322,40 @@ Over a socket that rarely matters, but it can for local stores holding values wh
 
 ## Known limitations
 
-- `detach()` doesn't end subscriptions from or through that store, and doesn't touch requests waiting on it.
+- `detach()` doesn't end subscriptions from or through that store, and doesn't touch requests waiting on it. Use
+  `abort()` to end waiting requests.
+- `abort()` ends the requests waiting on every attached store. It can't yet end only one store's requests.
 - Querying a parent can't include the contents of attached stores.
 - Deref mode turns values into JSON and back, which is inefficient and loses values like `Map`.
 - Some unit tests depend on the state left by earlier tests.
 - `unsubscribe_tree()` needs a test that it throws when it can't remove every subscription.
+
+## Future work
+
+### Aborting one store's requests: `abort(reason, obj)`
+
+A store with several attached stores, like a server with a socket per client, may want to end only the requests sent
+over one link when that link closes, and leave the rest waiting. `abort(reason)` can't do that, because a request
+doesn't know which store it was sent to:
+
+- Requests are kept by uuid alone, as `_requests[uuid] = { resolve, reject }`.
+- A reply is matched by its uuid, whichever store it came from.
+
+What it would need:
+
+1. **Record the store with each request.** `get()` would save the `obj` it transmitted to alongside `resolve` and
+   `reject`. It must be the `obj` passed to `attach()`, not the namespace. A namespace can be detached and attached to
+   a different store while a request waits, and the request still belongs to the store it was sent to.
+2. **Filter in `abort()`.** With an `obj`, reject only that store's requests. Without one, reject them all, as now. An
+   `obj` which was never attached aborts nothing, rather than throwing, since it may have been detached already.
+3. **Decide what a reply from another store means.** Once requests know their store, `receive()` could check that a
+   reply came from it. That is stricter than today, and could break setups where replies arrive through a different
+   object than the one requests go out on, so it should be its own change.
+4. **Tests:** only the named store's requests reject; others still resolve; a request sent before its namespace was
+   re-attached to another store belongs to the old store; and the call with no `obj` is unchanged.
+
+Even then, the trigger for it would be the link closing, not `detach()`. A detach and re-attach over the same link can
+still deliver the reply.
 
 ## Development
 
